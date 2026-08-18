@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { dbSignIn, dbSignUp } from '../utils/supabase';
 import { Sparkles, Mail, Lock, LogIn, UserPlus, AlertCircle, ArrowRight, Eye, EyeOff, Loader2 } from 'lucide-react';
 
@@ -15,6 +15,39 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [rememberMe, setRememberMe] = useState(true);
+
+  useEffect(() => {
+    const isRemembered = localStorage.getItem('appcal_remember_me') === 'true';
+    if (isRemembered) {
+      const savedEmail = localStorage.getItem('appcal_saved_email') || '';
+      const savedPassword = localStorage.getItem('appcal_saved_password') || '';
+      if (savedEmail && savedPassword) {
+        setEmail(savedEmail);
+        setPassword(savedPassword);
+        setRememberMe(true);
+        
+        // Auto-login!
+        setIsLoading(true);
+        const autoLogin = async () => {
+          try {
+            const { user, error: signInError } = await dbSignIn(savedEmail, savedPassword);
+            if (!signInError && user) {
+              onAuthSuccess(user);
+            } else {
+              setIsLoading(false);
+              if (signInError) {
+                setError('Erro no início de sessão automático. Por favor, introduza os dados novamente.');
+              }
+            }
+          } catch (err) {
+            setIsLoading(false);
+          }
+        };
+        autoLogin();
+      }
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,6 +77,15 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
         if (signInError) {
           setError(signInError);
         } else if (user) {
+          if (rememberMe) {
+            localStorage.setItem('appcal_remember_me', 'true');
+            localStorage.setItem('appcal_saved_email', email);
+            localStorage.setItem('appcal_saved_password', password);
+          } else {
+            localStorage.removeItem('appcal_remember_me');
+            localStorage.removeItem('appcal_saved_email');
+            localStorage.removeItem('appcal_saved_password');
+          }
           onAuthSuccess(user);
         }
       } else {
@@ -52,6 +94,11 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
         if (signUpError) {
           setError(signUpError);
         } else if (user) {
+          if (rememberMe) {
+            localStorage.setItem('appcal_remember_me', 'true');
+            localStorage.setItem('appcal_saved_email', email);
+            localStorage.setItem('appcal_saved_password', password);
+          }
           onAuthSuccess(user);
         }
       }
@@ -145,6 +192,22 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
                   required
                 />
               </div>
+            </div>
+          )}
+
+          {/* Remember Me Checkbox (only in Login Mode) */}
+          {isLoginMode && (
+            <div style={rememberMeContainerStyle}>
+              <label style={rememberMeLabelStyle}>
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  style={checkboxStyle}
+                  disabled={isLoading}
+                />
+                <span>Manter sessão iniciada neste dispositivo</span>
+              </label>
             </div>
           )}
 
@@ -357,4 +420,27 @@ const switchModeButtonStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: '4px',
+};
+
+const rememberMeContainerStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  padding: '2px 0',
+};
+
+const rememberMeLabelStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '8px',
+  fontSize: '0.85rem',
+  color: 'var(--color-text-secondary)',
+  cursor: 'pointer',
+  userSelect: 'none',
+};
+
+const checkboxStyle: React.CSSProperties = {
+  width: '16px',
+  height: '16px',
+  accentColor: 'var(--macro-calories)',
+  cursor: 'pointer',
 };

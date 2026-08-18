@@ -221,6 +221,9 @@ export const dbSignOut = async (): Promise<void> => {
     await client.auth.signOut();
   }
   localStorage.removeItem('appcal_current_user');
+  localStorage.removeItem('appcal_remember_me');
+  localStorage.removeItem('appcal_saved_email');
+  localStorage.removeItem('appcal_saved_password');
 };
 
 export const dbUpdatePassword = async (newPassword: string): Promise<{ success: boolean; error: string | null }> => {
