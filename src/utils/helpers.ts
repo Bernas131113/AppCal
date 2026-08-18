@@ -1,36 +1,56 @@
 // Helpers for AppCal
 
-import imageCompression from 'browser-image-compression';
-
 /**
- * Compresses an image file client-side using browser-image-compression.
- * Resizes the image to target size under 800KB and outputs a JPEG base64 string.
+ * Compresses an image file client-side using native HTML5 canvas.
+ * Resizes the image to target max dimension and outputs a lightweight JPEG base64 string.
+ * This is extremely reliable on iOS Safari and prevents high-resolution 429 token limits.
  */
-export const compressImage = async (file: File, maxDimension: number = 1024, quality: number = 0.8): Promise<string> => {
-  const options = {
-    maxSizeMB: 0.8, // target size < 800KB
-    maxWidthOrHeight: maxDimension,
-    useWebWorker: true,
-    initialQuality: quality
-  };
-  try {
-    const compressedFile = await imageCompression(file, options);
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(compressedFile);
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = reject;
-    });
-  } catch (error) {
-    console.error("Erro na compressão de imagem:", error);
-    // Fallback: convert original file to base64
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = reject;
-    });
-  }
+export const compressImage = async (file: File, maxDimension: number = 800, quality: number = 0.6): Promise<string> => {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        // Scale keeping aspect ratio
+        if (width > height) {
+          if (width > maxDimension) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          }
+        } else {
+          if (height > maxDimension) {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          // Export as compressed JPEG
+          const dataUrl = canvas.toDataURL('image/jpeg', quality);
+          resolve(dataUrl);
+        } else {
+          resolve(img.src);
+        }
+      };
+      img.onerror = () => {
+        resolve(event.target?.result as string);
+      };
+    };
+    reader.onerror = () => {
+      resolve('');
+    };
+  });
 };
 
 /**
