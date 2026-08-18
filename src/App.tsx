@@ -556,11 +556,13 @@ const appLayoutContainerStyle: React.CSSProperties = {
   width: '100%',
   maxWidth: '1200px',
   margin: '0 auto',
-  padding: 'calc(16px + env(safe-area-inset-top)) 16px calc(90px + env(safe-area-inset-bottom)) 16px',
+  padding: 'calc(16px + env(safe-area-inset-top)) 16px calc(110px + env(safe-area-inset-bottom)) 16px',
   display: 'flex',
   flexDirection: 'column',
   gap: '16px',
-  minHeight: '100dvh',
+  height: '100dvh',
+  overflowY: 'auto',
+  WebkitOverflowScrolling: 'touch',
 };
 
 // Old header and layout styles removed (Navigation moved to bottom and pages layout restructured)

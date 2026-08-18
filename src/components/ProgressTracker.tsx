@@ -165,7 +165,7 @@ export const ProgressTracker: React.FC<ProgressTrackerProps> = ({ goals, meals, 
         </div>
 
         <form onSubmit={handleAddWeight} style={weightFormStyle}>
-          <div style={{ flex: 1.5, ...inputGroupStyle }}>
+          <div style={inputGroupStyle}>
             <label style={labelStyle}>Peso Matinal (kg)</label>
             <input
               type="number"
@@ -178,7 +178,7 @@ export const ProgressTracker: React.FC<ProgressTrackerProps> = ({ goals, meals, 
             />
           </div>
 
-          <div style={{ flex: 1.5, ...inputGroupStyle }}>
+          <div style={inputGroupStyle}>
             <label style={labelStyle}>Data de Medição</label>
             <input
               type="date"
@@ -189,7 +189,7 @@ export const ProgressTracker: React.FC<ProgressTrackerProps> = ({ goals, meals, 
             />
           </div>
 
-          <button type="submit" disabled={isLoading} style={addWeightButtonStyle}>
+          <button type="submit" disabled={isLoading} style={{ ...addWeightButtonStyle, width: '100%', marginTop: '6px' }}>
             <Plus size={18} />
             <span>Registar</span>
           </button>
@@ -417,9 +417,8 @@ const sectionTitleStyle: React.CSSProperties = {
 
 const weightFormStyle: React.CSSProperties = {
   display: 'flex',
+  flexDirection: 'column',
   gap: '12px',
-  alignItems: 'flex-end',
-  flexWrap: 'wrap',
 };
 
 const inputGroupStyle: React.CSSProperties = {

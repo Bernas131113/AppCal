@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Html5Qrcode } from 'html5-qrcode';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { X } from 'lucide-react';
 
 interface BarcodeScannerProps {
@@ -26,13 +26,18 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScanSuccess, o
         html5QrCodeRef.current = scannerInstance;
 
         const config = {
-          fps: 10,
-          qrbox: (width: number, height: number) => {
-            return { 
-              width: Math.min(width * 0.85, 240), 
-              height: Math.min(height * 0.4, 100) 
-            };
-          }
+          fps: 15, // Faster frame acquisition rate
+          qrbox: { width: 220, height: 100 }, // Bounding box matching the card aspect ratio
+          formatsToSupport: [
+            Html5QrcodeSupportedFormats.EAN_13,
+            Html5QrcodeSupportedFormats.EAN_8,
+            Html5QrcodeSupportedFormats.UPC_A,
+            Html5QrcodeSupportedFormats.UPC_E,
+            Html5QrcodeSupportedFormats.CODE_128,
+            Html5QrcodeSupportedFormats.CODE_39,
+            Html5QrcodeSupportedFormats.ITF,
+            Html5QrcodeSupportedFormats.QR_CODE
+          ]
         };
 
         const onDecoded = (decodedText: string) => {
@@ -57,7 +62,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScanSuccess, o
           );
           if (active) setIsScanning(true);
         } catch (firstErr) {
-          console.warn("Failed to force exact environment back camera, trying fallback...", firstErr);
+          console.warn("Failed to force exact environment camera, fallback...", firstErr);
           if (!active) return;
           try {
             await scannerInstance.start(
@@ -72,6 +77,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScanSuccess, o
           }
         }
 
+        // Apply playsinline and ensure object-fit: cover for the video feed inside the card container
         let attempts = 0;
         const interval = setInterval(() => {
           attempts++;
@@ -83,6 +89,9 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScanSuccess, o
             video.setAttribute('autoplay', 'true');
             video.setAttribute('muted', 'true');
             video.setAttribute('controls', 'false');
+            video.style.objectFit = 'cover';
+            video.style.width = '100%';
+            video.style.height = '100%';
             video.play().catch(e => console.warn("Video auto-play failed/blocked on iOS:", e));
             clearInterval(interval);
           }
@@ -128,60 +137,179 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScanSuccess, o
   };
 
   return (
-    <div className="scanner-overlay-fullscreen">
-      <div id={scannerId} className="scanner-camera-container" />
-      
-      <div className="scanner-mask-overlay">
-        <div className="scanner-cutout-window">
-          <div className="scanner-laser-line" />
+    <div style={overlayStyle}>
+      <div className="glass-panel animate-pulse-slow" style={containerStyle}>
+        
+        {/* Header Title & Close Button */}
+        <div style={headerStyle}>
+          <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: '#fff', margin: 0 }}>
+            Leitor de Código de Barras
+          </h3>
+          <button 
+            type="button" 
+            onClick={onClose} 
+            style={closeButtonStyle}
+            title="Fechar leitor"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Centered Small Viewfinder Card */}
+        <div style={viewfinderWrapperStyle}>
+          <div id={scannerId} style={cameraViewportStyle} />
+          
+          {/* Glowing laser line animation */}
+          <div className="scanner-laser-line" style={{ top: '50%' }} />
+
+          {/* Bounding box brackets */}
           <div className="scanner-corner scanner-corner-tl" />
           <div className="scanner-corner scanner-corner-tr" />
           <div className="scanner-corner scanner-corner-bl" />
           <div className="scanner-corner scanner-corner-br" />
         </div>
-      </div>
-      
-      <button 
-        type="button" 
-        onClick={onClose} 
-        className="scanner-close-btn"
-        title="Cancelar Leitura"
-      >
-        <span>
-          <X size={20} />
-        </span>
-      </button>
-      
-      <div className="scanner-bottom-panel">
-        <p className="scanner-instruction" style={{ color: '#fff', textAlign: 'center', fontSize: '0.85rem', margin: '0 0 12px 0' }}>
-          {!isScanning ? 'A aceder à câmara...' : 'Aponte para o código de barras do produto'}
+
+        <p style={instructionsStyle}>
+          {!isScanning ? 'A ligar a câmara...' : 'Aponte para o código de barras do produto'}
         </p>
 
-        <div className="scanner-divider" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', color: 'rgba(255,255,255,0.4)', fontSize: '0.75rem', marginBottom: '12px' }}>
-          <div className="scanner-divider-line" style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.15)' }} />
-          <span>ou insira manualmente</span>
-          <div className="scanner-divider-line" style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.15)' }} />
+        {/* Horizontal Divider */}
+        <div style={dividerStyle}>
+          <div style={lineStyle} />
+          <span style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', fontWeight: 600 }}>ou manual</span>
+          <div style={lineStyle} />
         </div>
 
-        <form onSubmit={handleManualSubmit} className="scanner-manual-input-row">
+        {/* Manual Barcode Input Fallback */}
+        <form onSubmit={handleManualSubmit} style={formStyle}>
           <input
             type="number"
             pattern="[0-9]*"
             inputMode="numeric"
-            placeholder="Ex: 5601234567890"
+            placeholder="Código de barras"
             value={barcodeInput}
             onChange={(e) => setBarcodeInput(e.target.value)}
-            className="scanner-manual-input"
+            style={inputStyle}
           />
           <button
             type="submit"
             disabled={!barcodeInput.trim()}
-            className="scanner-manual-submit-btn"
+            style={submitButtonStyle}
           >
             Procurar
           </button>
         </form>
+
       </div>
     </div>
   );
+};
+
+// CSS Styles for Popover layout
+const overlayStyle: React.CSSProperties = {
+  position: 'fixed',
+  inset: 0,
+  backgroundColor: 'rgba(0, 0, 0, 0.75)',
+  backdropFilter: 'blur(6px)',
+  WebkitBackdropFilter: 'blur(6px)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  zIndex: 10005,
+  padding: '20px',
+};
+
+const containerStyle: React.CSSProperties = {
+  width: '100%',
+  maxWidth: '320px',
+  padding: '16px',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '12px',
+  borderRadius: '20px',
+  boxShadow: '0 20px 50px rgba(0,0,0,0.6)',
+  border: '1px solid var(--border-glass)',
+  background: 'rgba(15, 23, 42, 0.98)',
+};
+
+const headerStyle: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  paddingBottom: '2px',
+};
+
+const closeButtonStyle: React.CSSProperties = {
+  background: 'rgba(255, 255, 255, 0.08)',
+  border: 'none',
+  borderRadius: '50%',
+  width: '28px',
+  height: '28px',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  color: '#fff',
+  cursor: 'pointer',
+  transition: 'all 0.2s',
+};
+
+const viewfinderWrapperStyle: React.CSSProperties = {
+  position: 'relative',
+  width: '100%',
+  height: '140px',
+  borderRadius: '12px',
+  overflow: 'hidden',
+  border: '1px solid rgba(255, 255, 255, 0.1)',
+  backgroundColor: '#000',
+};
+
+const cameraViewportStyle: React.CSSProperties = {
+  width: '100%',
+  height: '100%',
+};
+
+const instructionsStyle: React.CSSProperties = {
+  fontSize: '0.75rem',
+  color: 'var(--color-text-secondary)',
+  textAlign: 'center',
+  margin: 0,
+};
+
+const dividerStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '8px',
+};
+
+const lineStyle: React.CSSProperties = {
+  flex: 1,
+  height: '1px',
+  background: 'rgba(255, 255, 255, 0.1)',
+};
+
+const formStyle: React.CSSProperties = {
+  display: 'flex',
+  gap: '8px',
+};
+
+const inputStyle: React.CSSProperties = {
+  flex: 1,
+  padding: '10px 14px',
+  backgroundColor: 'rgba(255,255,255,0.03)',
+  border: '1px solid rgba(255,255,255,0.08)',
+  borderRadius: '10px',
+  fontSize: '16px',
+  color: '#fff',
+  outline: 'none',
+};
+
+const submitButtonStyle: React.CSSProperties = {
+  padding: '0 16px',
+  borderRadius: '10px',
+  border: 'none',
+  background: 'var(--macro-calories)',
+  color: '#fff',
+  fontSize: '0.85rem',
+  fontWeight: 700,
+  cursor: 'pointer',
 };
