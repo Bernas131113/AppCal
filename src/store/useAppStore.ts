@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import type { Meal, AppSettings, MealType, FoodItem } from '../types';
 import { getSettings, saveSettings } from '../utils/storage';
 import { fetchMeals, fetchProfileSettings, saveProfileSettings } from '../utils/supabase';
@@ -46,75 +47,89 @@ interface AppState {
   syncSettingsFromCloud: () => Promise<void>;
 }
 
-export const useAppStore = create<AppState>((set, get) => ({
-  currentUser: null,
-  settings: getSettings(),
-  meals: [],
-  activeTab: 'diary',
-  editingMeal: null,
-  pendingAnalysis: null,
-  toastConfig: null,
-  modalConfig: null,
-  isInitializing: true,
-  showSettings: false,
+export const useAppStore = create<AppState>()(
+  persist(
+    (set, get) => ({
+      currentUser: null,
+      settings: getSettings(),
+      meals: [],
+      activeTab: 'diary',
+      editingMeal: null,
+      pendingAnalysis: null,
+      toastConfig: null,
+      modalConfig: null,
+      isInitializing: true,
+      showSettings: false,
 
-  setCurrentUser: (user) => set({ currentUser: user }),
-  setSettings: (newSettings) => {
-    saveSettings(newSettings);
-    set({ settings: newSettings });
-  },
-  
-  saveSettingsCloud: async (newSettings) => {
-    saveSettings(newSettings);
-    set({ settings: newSettings });
-    // Sync to cloud database
-    await saveProfileSettings(newSettings);
-  },
+      setCurrentUser: (user) => set({ currentUser: user }),
+      setSettings: (newSettings) => {
+        saveSettings(newSettings);
+        set({ settings: newSettings });
+      },
 
-  setMeals: (meals) => set({ meals }),
-  setActiveTab: (tab) => set({ activeTab: tab }),
-  setEditingMeal: (meal) => set({ editingMeal: meal }),
-  setPendingAnalysis: (analysis) => set({ pendingAnalysis: analysis }),
-  
-  showToast: (message, type = 'success') => {
-    set({ toastConfig: { isOpen: true, message, type } });
-    setTimeout(() => {
-      const current = get().toastConfig;
-      if (current && current.message === message) {
-        set({ toastConfig: null });
-      }
-    }, 3000);
-  },
-  closeToast: () => set({ toastConfig: null }),
-  
-  confirmAction: (title, message, onConfirm) => {
-    set({
-      modalConfig: {
-        title,
-        message,
-        confirmText: 'Confirmar',
-        cancelText: 'Cancelar',
-        onConfirm: () => {
-          onConfirm();
-          set({ modalConfig: null });
+      saveSettingsCloud: async (newSettings) => {
+        saveSettings(newSettings);
+        set({ settings: newSettings });
+        await saveProfileSettings(newSettings);
+      },
+
+      setMeals: (meals) => set({ meals }),
+      setActiveTab: (tab) => set({ activeTab: tab }),
+      setEditingMeal: (meal) => set({ editingMeal: meal }),
+      setPendingAnalysis: (analysis) => set({ pendingAnalysis: analysis }),
+
+      showToast: (message, type = 'success') => {
+        set({ toastConfig: { isOpen: true, message, type } });
+        setTimeout(() => {
+          const current = get().toastConfig;
+          if (current && current.message === message) {
+            set({ toastConfig: null });
+          }
+        }, 3000);
+      },
+      closeToast: () => set({ toastConfig: null }),
+
+      confirmAction: (title, message, onConfirm) => {
+        set({
+          modalConfig: {
+            title,
+            message,
+            confirmText: 'Confirmar',
+            cancelText: 'Cancelar',
+            onConfirm: () => {
+              onConfirm();
+              set({ modalConfig: null });
+            }
+          }
+        });
+      },
+      closeModal: () => set({ modalConfig: null }),
+
+      loadMeals: async () => {
+        const fetched = await fetchMeals();
+        set({ meals: fetched });
+      },
+
+      setIsInitializing: (val) => set({ isInitializing: val }),
+
+      syncSettingsFromCloud: async () => {
+        const cloudSettings = await fetchProfileSettings();
+        if (cloudSettings) {
+          saveSettings(cloudSettings);
+          set({ settings: cloudSettings });
         }
       }
-    });
-  },
-  closeModal: () => set({ modalConfig: null }),
-
-  loadMeals: async () => {
-    const fetched = await fetchMeals();
-    set({ meals: fetched });
-  },
-  
-  setIsInitializing: (val) => set({ isInitializing: val }),
-
-  syncSettingsFromCloud: async () => {
-    const cloudSettings = await fetchProfileSettings();
-    if (cloudSettings) {
-      saveSettings(cloudSettings);
-      set({ settings: cloudSettings });
+    }),
+    {
+      name: 'appcal-store-v1', // localStorage key
+      // Only persist data state — exclude UI state and functions
+      partialize: (state) => ({
+        currentUser: state.currentUser,
+        settings: state.settings,
+        meals: state.meals,
+        activeTab: state.activeTab,
+      }),
     }
-  }
-}));
+  )
+);
+

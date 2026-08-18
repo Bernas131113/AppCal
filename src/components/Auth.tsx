@@ -65,7 +65,7 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
 
   return (
     <div style={authPageContainerStyle}>
-      <div className="glass-panel animate-pulse-slow" style={authCardStyle}>
+      <div className="glass-panel" style={authCardStyle}>
         
         {/* Logo and Brand */}
         <div style={brandHeaderStyle}>
