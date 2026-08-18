@@ -65,6 +65,7 @@ export interface AppSettings {
   useSupabase: boolean;
   supabaseUrl: string;
   supabaseAnonKey: string;
+  language?: 'pt' | 'en';
 }
 
 export interface FavoriteMeal {

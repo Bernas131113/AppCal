@@ -25,6 +25,11 @@ const DEFAULT_PROFILE = {
   },
 };
 
+const detectLanguage = (): 'pt' | 'en' => {
+  const navLang = typeof navigator !== 'undefined' ? navigator.language : 'pt';
+  return navLang.toLowerCase().startsWith('pt') ? 'pt' : 'en';
+};
+
 const DEFAULT_SETTINGS: AppSettings = {
   geminiApiKey: import.meta.env.VITE_GEMINI_API_KEY || '',
   model: 'gemini-3.5-flash',
@@ -38,6 +43,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   useSupabase: !!import.meta.env.VITE_SUPABASE_URL,
   supabaseUrl: import.meta.env.VITE_SUPABASE_URL || '',
   supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY || '',
+  language: detectLanguage(),
 };
 
 export const getSettings = (): AppSettings => {

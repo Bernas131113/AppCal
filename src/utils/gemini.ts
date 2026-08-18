@@ -1,4 +1,5 @@
 import type { FoodItem, MealType } from '../types';
+import { useAppStore } from '../store/useAppStore';
 
 interface GeminiResponse {
   meal_type: MealType;
@@ -156,20 +157,54 @@ export const analyzeMealWithGemini = async (
   }
   // URL is constructed dynamically below using the effective API key from .env
 
-  // Assemble system instructions and core prompt
-  const systemInstruction = 
-    `És um nutricionista profissional altamente experiente e especializado em estimar a composição nutricional de pratos através de imagens, descrições textuais e áudio.
+  // Assemble system instructions and core prompt — bilingual based on user language setting
+  const lang = useAppStore.getState().settings.language || 'pt';
+  const isEn = lang === 'en';
+
+  const systemInstruction = isEn
+    ? `You are a highly experienced professional nutritionist specializing in estimating the nutritional composition of plates using images, textual descriptions, and audio.
+    Analyze the provided data (meal photos, text notes, and context audio) and return the ingredient breakdown.
+    Strict rules:
+    1. Break down the meal into its individual ingredients (food itemization). Do not just give the complete plate.
+    2. Estimate the weight of each ingredient in grams.
+    3. Calculate the macronutrients of each ingredient: Calories (kcal), Protein (g), Carbohydrates (g), and Fats (g).
+    4. Assign a confidence level ("high", "medium", "low") based on visual clarity and description.
+    5. Your output must be strictly in JSON format matching the requested JSON Schema. Do not add explanations, markdown tags, or text outside the JSON.
+    6. If the user provides text or voice notes detailing additional ingredients (e.g. "olive oil", "sugar", "butter") that are not easily visible in the image, you must include them in the estimate.`
+    : `És um nutricionista profissional altamente experiente e especializado em estimar a composição nutricional de pratos através de imagens, descrições textuais e áudio.
     Analisa os dados fornecidos (fotos da refeição, notas textuais e áudios de contexto) e devolve a decomposição de ingredientes.
     Regras estritas:
     1. Divide a refeição nos seus ingredientes individuais (food itemization). Não dês apenas o prato completo.
     2. Estima o peso de cada ingrediente em gramas.
     3. Calcula os macronutrientes de cada ingrediente: Calorias (kcal), Proteína (g), Hidratos de Carbono (g) e Lípidos/Gorduras (g).
     4. Atribui um nível de confiança ("high", "medium", "low") baseado na clareza visual e descrição.
-    5. O teu output deve ser estritamente em formato JSON em conformidade com o JSON Schema solicitado. Não adiciones explicações, tags markdown ou texto fora do JSON.
+    5. O teu output deve ser estritamente em formato JSON em conformidade com o JSON Schema solicitado. Não adicione explicações, tags markdown ou texto fora do JSON.
     6. Se o utilizador fornecer notas de voz ou texto que detalham ingredientes adicionais (ex.: "azeite", "açúcar", "manteiga") que não são facilmente visíveis na imagem, deves obrigatoriamente incluí-los na estimativa.`;
 
-  const promptText = 
-    `Analisa esta refeição e devolve os macronutrientes e a decomposição dos ingredientes em JSON.
+  const promptText = isEn
+    ? `Analyze this meal and return the macronutrients and ingredient breakdown in JSON.
+    User context notes: "${textNotes || 'No text notes provided.'}"
+    
+    The response must EXCLUSIVELY match the following JSON structure:
+    {
+      "meal_type": "breakfast" | "lunch" | "dinner" | "snack",
+      "items": [
+        {
+          "name": "Food Item Name in English",
+          "weight_g": number,
+          "calories": number,
+          "protein": number,
+          "carbs": number,
+          "fats": number,
+          "confidence": "high" | "medium" | "low"
+        }
+      ],
+      "total_calories": number,
+      "total_protein": number,
+      "total_carbs": number,
+      "total_fats": number
+    }`
+    : `Analisa esta refeição e devolve os macronutrientes e a decomposição dos ingredientes em JSON.
     Notas de contexto do utilizador: "${textNotes || 'Nenhuma nota de texto fornecida.'}"
     
     A resposta tem de obedecer EXCLUSIVAMENTE à seguinte estrutura JSON:

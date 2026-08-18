@@ -12,8 +12,10 @@ import {
   Loader2, 
   Eye, 
   EyeOff,
-  X
+  X,
+  Globe
 } from 'lucide-react';
+import { useTranslation } from '../utils/i18n';
 
 interface ProfileViewProps {
   onSettingsSaved: (settings: AppSettings) => void;
@@ -32,12 +34,22 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [activeCategory, setActiveCategory] = useState<string>('all'); // 'all' or 'personal' | 'macros' | 'ai' | 'cloud' | 'security' | 'gallery'
   const [selectedPhoto, setSelectedPhoto] = useState<{ photo: string; timestamp: string; mealType: string } | null>(null);
 
+  const { t } = useTranslation();
+
   // Password state
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
   const [showPwd, setShowPwd] = useState(false);
+
+  const handleLanguageChange = (lang: 'pt' | 'en') => {
+    const updated = { ...settings, language: lang };
+    setSettings(updated);
+    saveSettings(updated);
+    onSettingsSaved(updated);
+  };
+
 
   // Mifflin-St Jeor TDEE & Macro calculator
   const runCalculations = (profile: UserProfile): { calories: number; protein: number; carbs: number; fats: number; tdee: number; bmr: number } => {
@@ -648,6 +660,32 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               </form>
             )}
 
+            {/* Language Selector */}
+            <div style={langSectionStyle}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                <Globe size={16} style={{ color: 'var(--color-text-secondary)' }} />
+                <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  {t('profile_lang_label')}
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => handleLanguageChange('pt')}
+                  style={{ ...langButtonStyle, ...(settings.language !== 'en' ? langButtonActiveStyle : {}) }}
+                >
+                  🇵🇹 {t('profile_lang_pt')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleLanguageChange('en')}
+                  style={{ ...langButtonStyle, ...(settings.language === 'en' ? langButtonActiveStyle : {}) }}
+                >
+                  🇬🇧 {t('profile_lang_en')}
+                </button>
+              </div>
+            </div>
+
             <div style={{ height: '1px', background: 'rgba(255,255,255,0.06)' }} />
 
             <button 
@@ -656,7 +694,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               style={logoutButtonStyle}
             >
               <LogOut size={16} />
-              <span>Terminar Sessão</span>
+              <span>{t('auth_logout')}</span>
             </button>
           </div>
         </div>
@@ -1004,3 +1042,30 @@ const lightboxTagStyle: React.CSSProperties = {
   border: '1px solid rgba(255, 255, 255, 0.12)',
   boxShadow: '0 4px 10px rgba(0,0,0,0.3)',
 };
+
+const langSectionStyle: React.CSSProperties = {
+  padding: '14px',
+  borderRadius: '12px',
+  border: '1px solid rgba(255,255,255,0.06)',
+  backgroundColor: 'rgba(255,255,255,0.02)',
+};
+
+const langButtonStyle: React.CSSProperties = {
+  flex: 1,
+  padding: '10px 8px',
+  borderRadius: '10px',
+  border: '1px solid rgba(255,255,255,0.1)',
+  background: 'rgba(255,255,255,0.04)',
+  color: 'var(--color-text-secondary)',
+  fontSize: '0.8rem',
+  fontWeight: 600,
+  cursor: 'pointer',
+  transition: 'all 0.2s',
+};
+
+const langButtonActiveStyle: React.CSSProperties = {
+  border: '1px solid var(--macro-calories)',
+  background: 'rgba(16, 185, 129, 0.12)',
+  color: '#fff',
+};
+
