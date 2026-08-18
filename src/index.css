@@ -44,7 +44,11 @@ body {
   color: var(--color-text-primary);
   min-height: 100dvh;
   overflow-x: hidden;
-  overscroll-behavior: none;
+  overscroll-behavior-y: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
   background-image: 
     radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.08) 0%, transparent 40%),
     radial-gradient(circle at 90% 80%, rgba(16, 185, 129, 0.06) 0%, transparent 40%);
@@ -521,6 +525,29 @@ button {
   background: rgba(255, 255, 255, 0.04);
   color: #6b7280;
   cursor: not-allowed;
+}
+
+/* PWA layout structure and safety classes */
+#root {
+  height: 100dvh;
+  width: 100vw;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+input, textarea, select {
+  -webkit-user-select: auto;
+  user-select: auto;
+  font-size: 16px !important;
+}
+
+.safe-padding-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+.safe-padding-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 
