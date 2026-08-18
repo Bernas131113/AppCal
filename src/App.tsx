@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react';
-import type { Meal, AppSettings, FoodItem, MealType } from './types';
-import { getSettings } from './utils/storage';
-import { getLoggedInUser, dbSignOut, fetchMeals, insertMeal, deleteMealDb } from './utils/supabase';
+import { useEffect } from 'react';
+import { useAppStore } from './store/useAppStore';
+import { getLoggedInUser, dbSignOut, deleteMealDb, insertMeal } from './utils/supabase';
 import { MealLogger } from './components/MealLogger';
 import { MealReview } from './components/MealReview';
 import { Dashboard } from './components/Dashboard';
@@ -12,147 +11,96 @@ import { Settings as SettingsIcon, Sparkles, LogOut, Calendar, TrendingUp, User,
 import './App.css';
 
 function App() {
-  const [currentUser, setCurrentUser] = useState<{ id: string; email: string } | null>(null);
-  const [settings, setSettings] = useState<AppSettings>(getSettings());
-  const [meals, setMeals] = useState<Meal[]>([]);
-  const [showSettings, setShowSettings] = useState(false);
-  const [activeTab, setActiveTab] = useState<'diary' | 'progress'>('diary');
-  const [isInitializing, setIsInitializing] = useState(true);
-
-  // Editing meal state
-  const [editingMeal, setEditingMeal] = useState<Meal | null>(null);
-
-  // Custom alert & confirmation modal states
-  const [modalConfig, setModalConfig] = useState<{
-    title: string;
-    message: string;
-    confirmText: string;
-    cancelText: string;
-    onConfirm: () => void;
-  } | null>(null);
-
-  // Custom Toast notifications
-  const [toastConfig, setToastConfig] = useState<{
-    isOpen: boolean;
-    message: string;
-    type: 'success' | 'error' | 'info';
-  } | null>(null);
-
-  // Toast notification helper
-  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
-    setToastConfig({ isOpen: true, message, type });
-    setTimeout(() => {
-      setToastConfig(prev => prev ? { ...prev, isOpen: false } : null);
-    }, 3000);
-  };
-
-  // Custom confirmation helper
-  const confirmAction = (title: string, message: string, onConfirm: () => void) => {
-    setModalConfig({
-      title,
-      message,
-      confirmText: 'Confirmar',
-      cancelText: 'Cancelar',
-      onConfirm: () => {
-        onConfirm();
-        setModalConfig(null);
-      }
-    });
-  };
-
-  // Pending review state
-  const [pendingAnalysis, setPendingAnalysis] = useState<{
-    meal_type: MealType;
-    items: FoodItem[];
-    photos: string[];
-    notes: string;
-  } | null>(null);
+  const {
+    currentUser,
+    setCurrentUser,
+    settings,
+    saveSettingsCloud,
+    meals,
+    loadMeals,
+    activeTab,
+    setActiveTab,
+    editingMeal,
+    setEditingMeal,
+    pendingAnalysis,
+    setPendingAnalysis,
+    toastConfig,
+    showToast,
+    modalConfig,
+    confirmAction,
+    isInitializing,
+    setIsInitializing,
+    syncSettingsFromCloud
+  } = useAppStore();
 
   // Check login session on mount
   useEffect(() => {
-    const user = getLoggedInUser();
-    if (user) {
-      setCurrentUser(user);
-      loadUserMeals();
-    }
-    setIsInitializing(false);
+    const initSession = async () => {
+      const user = getLoggedInUser();
+      if (user) {
+        setCurrentUser(user);
+        // Sync profile settings and meals from cloud database
+        await Promise.all([
+          syncSettingsFromCloud(),
+          loadMeals()
+        ]);
+      }
+      setIsInitializing(false);
+    };
+    initSession();
   }, []);
 
-  const loadUserMeals = async () => {
-    const fetched = await fetchMeals();
-    setMeals(fetched);
-  };
-
-  const handleAuthSuccess = (user: { id: string; email: string }) => {
+  const handleAuthSuccess = async (user: { id: string; email: string }) => {
     setCurrentUser(user);
     showToast('Sessão iniciada com sucesso!', 'success');
-    // Load fresh meals for this user
-    setTimeout(() => {
-      loadUserMeals();
-    }, 100);
+    setIsInitializing(true);
+    // Reload user settings and meals
+    await Promise.all([
+      syncSettingsFromCloud(),
+      loadMeals()
+    ]);
+    setIsInitializing(false);
   };
 
   const handleLogout = () => {
     confirmAction('Terminar Sessão', 'Deseja realmente terminar a sua sessão calórica?', async () => {
       await dbSignOut();
       setCurrentUser(null);
-      setMeals([]);
-      setPendingAnalysis(null);
       setEditingMeal(null);
+      setPendingAnalysis(null);
       showToast('Sessão terminada.', 'info');
     });
   };
 
-  const handleSettingsSaved = (newSettings: AppSettings) => {
-    setSettings(newSettings);
-    setShowSettings(false);
-    showToast('Definições guardadas!', 'success');
-    loadUserMeals();
+  const handleSettingsSaved = async (newSettings: any) => {
+    await saveSettingsCloud(newSettings);
+    showToast('Metas guardadas e sincronizadas!', 'success');
   };
 
-  const handleAnalysisComplete = (result: {
-    meal_type: MealType;
-    items: FoodItem[];
-    photos: string[];
-    notes: string;
-  }) => {
-    setPendingAnalysis(result);
-  };
-
-  const handleSaveMeal = async (newMeal: Meal) => {
+  const handleSaveMeal = async (newMeal: any) => {
     await insertMeal(newMeal);
-    const updated = await fetchMeals();
-    setMeals(updated);
-    setPendingAnalysis(null); // Close review panel
+    await loadMeals();
+    setPendingAnalysis(null);
     showToast('Refeição registada com sucesso!', 'success');
   };
 
-  const handleEditMeal = (meal: Meal) => {
-    setEditingMeal(meal);
-  };
-
-  const handleSaveEditedMeal = async (updatedMeal: Meal) => {
+  const handleSaveEditedMeal = async (updatedMeal: any) => {
     if (!editingMeal) return;
-    
-    // Preserve the original meal identity and date
     const mealToSave = {
       ...updatedMeal,
       id: editingMeal.id,
       timestamp: editingMeal.timestamp
     };
-    
     await insertMeal(mealToSave);
-    const updated = await fetchMeals();
-    setMeals(updated);
-    setEditingMeal(null); // Close edit panel
+    await loadMeals();
+    setEditingMeal(null);
     showToast('Refeição atualizada com sucesso!', 'success');
   };
 
   const handleDeleteMeal = (id: string) => {
     confirmAction('Eliminar Registo', 'Tem a certeza que deseja apagar permanentemente este registo?', async () => {
       await deleteMealDb(id);
-      const updated = await fetchMeals();
-      setMeals(updated);
+      await loadMeals();
       showToast('Registo eliminado.', 'success');
     });
   };
@@ -190,7 +138,7 @@ function App() {
             <h3 style={customModalTitleStyle}>{modalConfig.title}</h3>
             <p style={customModalMessageStyle}>{modalConfig.message}</p>
             <div style={customModalActionsStyle}>
-              <button onClick={() => setModalConfig(null)} style={customModalCancelButtonStyle}>
+              <button onClick={() => useAppStore.setState({ modalConfig: null })} style={customModalCancelButtonStyle}>
                 Cancelar
               </button>
               <button onClick={modalConfig.onConfirm} style={customModalConfirmButtonStyle}>
@@ -222,7 +170,7 @@ function App() {
 
           {/* Settings gear */}
           <button
-            onClick={() => setShowSettings(true)}
+            onClick={() => useAppStore.setState({ showSettings: true })}
             style={headerIconButtonStyle}
             title="Definições"
           >
@@ -276,7 +224,7 @@ function App() {
               <MealLogger
                 apiKey={settings.geminiApiKey}
                 model={settings.model}
-                onAnalysisComplete={handleAnalysisComplete}
+                onAnalysisComplete={setPendingAnalysis}
                 onInstantLog={handleSaveMeal}
               />
             </section>
@@ -287,7 +235,7 @@ function App() {
                 meals={meals}
                 goals={settings.goals}
                 onDeleteMeal={handleDeleteMeal}
-                onEditMeal={handleEditMeal}
+                onEditMeal={setEditingMeal}
                 showToast={showToast}
               />
             </section>
@@ -327,10 +275,10 @@ function App() {
       )}
 
       {/* Settings Modal Dialog */}
-      {showSettings && (
+      {useAppStore((state) => state.settings && (useAppStore.getState() as any).showSettings) && (
         <Settings
           onSettingsSaved={handleSettingsSaved}
-          onClose={() => setShowSettings(false)}
+          onClose={() => useAppStore.setState({ showSettings: false })}
           showToast={showToast}
         />
       )}

@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import type { Meal, WeightLog } from '../types';
+import type { Meal, WeightLog, AppSettings } from '../types';
 
 /*
   ========================================================================
@@ -428,4 +428,50 @@ export const deleteWeightLogDb = async (id: string): Promise<WeightLog[]> => {
   const updated = allLogs.filter((l: any) => !(l.id === id && l.user_id === user.id));
   localStorage.setItem('appcal_weight_logs', JSON.stringify(updated));
   return updated.filter((l: any) => l.user_id === user.id);
+};
+
+export const fetchProfileSettings = async (): Promise<AppSettings | null> => {
+  const client = getSupabaseClient();
+  const user = getLoggedInUser();
+  if (!user) return null;
+
+  if (client) {
+    try {
+      const { data, error } = await client
+        .from('profiles')
+        .select('settings')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (data && data.settings) {
+        return data.settings as AppSettings;
+      }
+    } catch (e) {
+      console.error('Erro ao ler perfil do Supabase:', e);
+    }
+  }
+  return null;
+};
+
+export const saveProfileSettings = async (settings: AppSettings): Promise<void> => {
+  const client = getSupabaseClient();
+  const user = getLoggedInUser();
+  if (!user) return;
+
+  if (client) {
+    try {
+      const { error } = await client
+        .from('profiles')
+        .upsert({
+          id: user.id,
+          settings: settings,
+          updated_at: new Date().toISOString()
+        });
+
+      if (error) throw error;
+    } catch (e) {
+      console.error('Erro ao guardar perfil no Supabase:', e);
+    }
+  }
 };

@@ -47,7 +47,6 @@ export const MealReview: React.FC<MealReviewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [searchSource, setSearchSource] = useState<'off' | 'ai'>('off');
   const [error, setError] = useState<string | null>(null);
 
   // Detail Modal States
@@ -243,13 +242,17 @@ export const MealReview: React.FC<MealReviewProps> = ({
     setIsSearching(true);
     setError(null);
     setSelectedSearchProduct(null);
-    setSearchSource('off');
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1200); // 1.2s max before IA fallback triggers
+
     try {
       const response = await fetch(
         `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(
           searchQuery
-        )}&search_simple=1&action=process&json=1&page_size=10`
+        )}&search_simple=1&action=process&json=1&page_size=10`,
+        { signal: controller.signal }
       );
+      clearTimeout(timeoutId);
       if (!response.ok) throw new Error('Falha ao aceder à base de dados.');
       const data = await response.json();
       setSearchResults(data.products || []);
@@ -257,8 +260,8 @@ export const MealReview: React.FC<MealReviewProps> = ({
         setError('Nenhum alimento encontrado com esse nome.');
       }
     } catch (err) {
-      console.log('Erro na base de dados externa. A tentar alternativa por IA...', err);
-      setSearchSource('ai');
+      clearTimeout(timeoutId);
+      console.log('Erro na base de dados externa ou limite de tempo excedido. A tentar alternativa por IA...', err);
       try {
         const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`;
         const geminiRequestBody = {
@@ -698,11 +701,6 @@ export const MealReview: React.FC<MealReviewProps> = ({
             </form>
 
             {/* Results list */}
-            {searchSource === 'ai' && searchResults.length > 0 && (
-              <div style={aiSearchWarningStyle}>
-                <span>💡 Base de dados em manutenção. Resultados estimados em tempo real por Inteligência Artificial.</span>
-              </div>
-            )}
 
             {error && (
               <p style={{ fontSize: '0.8rem', color: '#ef4444', textAlign: 'center', padding: '10px 0' }}>{error}</p>
@@ -1335,18 +1333,6 @@ const searchSubmitButtonStyle: React.CSSProperties = {
   transition: 'all 0.2s',
   WebkitTapHighlightColor: 'transparent',
   boxShadow: '0 4px 10px rgba(16, 185, 129, 0.2)',
-};
-
-const aiSearchWarningStyle: React.CSSProperties = {
-  padding: '8px 12px',
-  backgroundColor: 'rgba(245, 158, 11, 0.1)',
-  border: '1px solid rgba(245, 158, 11, 0.2)',
-  color: '#fbbf24',
-  borderRadius: '10px',
-  fontSize: '0.75rem',
-  fontWeight: 500,
-  marginBottom: '4px',
-  lineHeight: 1.3,
 };
 
 const searchResultsListStyle: React.CSSProperties = {

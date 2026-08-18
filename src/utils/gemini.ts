@@ -237,17 +237,40 @@ export const analyzeMealWithGemini = async (
   };
 
   try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody),
-    });
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+    let response;
+    if (supabaseUrl && supabaseAnonKey && supabaseUrl.includes('supabase.co')) {
+      // Secure call via Supabase Edge Function (API key stays hidden on backend!)
+      const edgeUrl = `${supabaseUrl}/functions/v1/gemini`;
+      response = await fetch(edgeUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseAnonKey}`,
+          'apikey': supabaseAnonKey
+        },
+        body: JSON.stringify({
+          model,
+          contents: requestBody.contents,
+          generationConfig: requestBody.generationConfig
+        }),
+      });
+    } else {
+      // Fallback direct call if Supabase is not active
+      response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Erro na API Gemini (${response.status}): ${errorText}`);
+      throw new Error(`Erro na API (${response.status}): ${errorText}`);
     }
 
     const data = await response.json();

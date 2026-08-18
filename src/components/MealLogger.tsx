@@ -52,7 +52,6 @@ export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysi
   const [isSearching, setIsSearching] = useState(false);
   const [selectedSearchProduct, setSelectedSearchProduct] = useState<any | null>(null);
   const [searchWeightGrams, setSearchWeightGrams] = useState(100);
-  const [searchSource, setSearchSource] = useState<'off' | 'ai'>('off');
 
   // Barcode scanner states
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
@@ -283,13 +282,17 @@ export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysi
     setIsSearching(true);
     setError(null);
     setSelectedSearchProduct(null);
-    setSearchSource('off');
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1200); // 1.2s max before IA fallback triggers
+
     try {
       const response = await fetch(
         `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(
           searchQuery
-        )}&search_simple=1&action=process&json=1&page_size=10`
+        )}&search_simple=1&action=process&json=1&page_size=10`,
+        { signal: controller.signal }
       );
+      clearTimeout(timeoutId);
       if (!response.ok) throw new Error('Falha ao aceder à base de dados.');
       const data = await response.json();
       setSearchResults(data.products || []);
@@ -297,8 +300,8 @@ export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysi
         setError('Nenhum alimento encontrado com esse nome.');
       }
     } catch (err) {
-      console.log('Erro na base de dados externa. A tentar alternativa por IA...', err);
-      setSearchSource('ai');
+      clearTimeout(timeoutId);
+      console.log('Erro na base de dados externa ou limite excedido. A tentar alternativa por IA...', err);
       try {
         const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`;
         const geminiRequestBody = {
@@ -681,11 +684,6 @@ export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysi
           </form>
 
           {/* Results list */}
-          {searchSource === 'ai' && searchResults.length > 0 && (
-            <div style={aiSearchWarningStyle}>
-              <span>💡 Base de dados em manutenção. Resultados estimados em tempo real por Inteligência Artificial.</span>
-            </div>
-          )}
           <div style={searchResultsListStyle} className="hide-scrollbar">
             {searchResults.map((prod) => (
               <div
@@ -1677,18 +1675,6 @@ const scannerSubStyle: React.CSSProperties = {
   color: 'var(--color-text-secondary)',
   maxWidth: '260px',
   lineHeight: 1.4,
-};
-
-const aiSearchWarningStyle: React.CSSProperties = {
-  padding: '8px 12px',
-  backgroundColor: 'rgba(245, 158, 11, 0.1)',
-  border: '1px solid rgba(245, 158, 11, 0.2)',
-  color: '#fbbf24',
-  borderRadius: '10px',
-  fontSize: '0.75rem',
-  fontWeight: 500,
-  marginBottom: '10px',
-  lineHeight: 1.3,
 };
 
 const customProductModalOverlayStyle: React.CSSProperties = {

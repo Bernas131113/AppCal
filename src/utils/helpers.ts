@@ -1,58 +1,36 @@
 // Helpers for AppCal
 
+import imageCompression from 'browser-image-compression';
+
 /**
- * Compresses an image file client-side using Canvas.
- * Resizes the image so its maximum dimension is maxDimension (default 1024px)
- * and outputs a JPEG base64 string with a quality setting (default 0.8).
+ * Compresses an image file client-side using browser-image-compression.
+ * Resizes the image to target size under 800KB and outputs a JPEG base64 string.
  */
-export const compressImage = (file: File, maxDimension: number = 1024, quality: number = 0.8): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = (event) => {
-      const img = new Image();
-      img.src = event.target?.result as string;
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
-
-        // Calculate new dimensions while maintaining aspect ratio
-        if (width > height) {
-          if (width > maxDimension) {
-            height = Math.round((height * maxDimension) / width);
-            width = maxDimension;
-          }
-        } else {
-          if (height > maxDimension) {
-            width = Math.round((width * maxDimension) / height);
-            height = maxDimension;
-          }
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          reject(new Error('Não foi possível obter o contexto 2D do Canvas'));
-          return;
-        }
-
-        ctx.drawImage(img, 0, 0, width, height);
-        
-        // Export to JPEG base64
-        const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
-        resolve(compressedBase64);
-      };
-      img.onerror = (err) => {
-        reject(err);
-      };
-    };
-    reader.onerror = (err) => {
-      reject(err);
-    };
-  });
+export const compressImage = async (file: File, maxDimension: number = 1024, quality: number = 0.8): Promise<string> => {
+  const options = {
+    maxSizeMB: 0.8, // target size < 800KB
+    maxWidthOrHeight: maxDimension,
+    useWebWorker: true,
+    initialQuality: quality
+  };
+  try {
+    const compressedFile = await imageCompression(file, options);
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(compressedFile);
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+    });
+  } catch (error) {
+    console.error("Erro na compressão de imagem:", error);
+    // Fallback: convert original file to base64
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+    });
+  }
 };
 
 /**
