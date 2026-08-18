@@ -224,14 +224,116 @@ button {
 
 /* AI Scan Laser animation */
 @keyframes scan {
-  0% { top: 0%; }
-  50% { top: 100%; }
-  100% { top: 0%; }
+  0% { top: 10%; }
+  50% { top: 85%; }
+  100% { top: 10%; }
 }
 
 /* Custom Toast animation */
 @keyframes slideDown {
   0% { transform: translate(-50%, -40px); opacity: 0; }
   100% { transform: translate(-50%, 0); opacity: 1; }
+}
+
+/* ============================================================
+   html5-qrcode library overrides — hide all the ugly default
+   UI elements and keep only the clean camera video feed
+   ============================================================ */
+
+/* Hide default "Start Camera / Stop Camera" button */
+#barcode-reader-element button,
+#barcode-reader-review button {
+  display: none !important;
+}
+
+/* Hide the camera select dropdown */
+#barcode-reader-element select,
+#barcode-reader-review select {
+  display: none !important;
+}
+
+/* Hide status text / anchor / file input injected by library */
+#barcode-reader-element span,
+#barcode-reader-review span,
+#barcode-reader-element a,
+#barcode-reader-review a,
+#barcode-reader-element input[type="file"],
+#barcode-reader-review input[type="file"] {
+  display: none !important;
+}
+
+/* Hide the outer border/header section the library creates */
+#barcode-reader-element > div:first-child,
+#barcode-reader-review > div:first-child {
+  display: none !important;
+}
+
+/* Make the video feed fill the container cleanly */
+#barcode-reader-element video,
+#barcode-reader-review video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  border-radius: 0 !important;
+  display: block !important;
+}
+
+/* Remove the internal padding/margin the library adds */
+#barcode-reader-element,
+#barcode-reader-review {
+  width: 100% !important;
+  height: 100% !important;
+  border: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+}
+
+/* The inner div the lib creates around the video */
+#barcode-reader-element > div,
+#barcode-reader-review > div {
+  width: 100% !important;
+  height: 100% !important;
+  border: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* QR box scanning indicator — restyle to match app design */
+#barcode-reader-element__scan_region,
+#barcode-reader-review__scan_region {
+  border: none !important;
+  background: transparent !important;
+}
+
+/* Scanning corner marks — match app accent color */
+#barcode-reader-element__scan_region img,
+#barcode-reader-review__scan_region img {
+  display: none !important;
+}
+
+/* Dashboard / scan stats section */
+#barcode-reader-element__dashboard,
+#barcode-reader-review__dashboard {
+  display: none !important;
+}
+
+/* Barcode modal entrance animation */
+@keyframes modalSlideUp {
+  0% { transform: translateY(30px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+.barcode-modal-enter {
+  animation: modalSlideUp 0.25s ease-out forwards;
+}
+
+/* Scanner laser line animation */
+@keyframes laserScan {
+  0%   { top: 8%; opacity: 1; }
+  48%  { opacity: 1; }
+  50%  { top: 88%; opacity: 0.6; }
+  52%  { opacity: 1; }
+  100% { top: 8%; opacity: 1; }
 }
 

@@ -840,54 +840,74 @@ export const MealReview: React.FC<MealReviewProps> = ({
       {/* Barcode Scanner Modal */}
       {showBarcodeScanner && (
         <div style={customBarcodeModalOverlayStyle}>
-          <div className="glass-panel" style={customBarcodeModalContentStyle}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-glass)', paddingBottom: '12px', marginBottom: '8px' }}>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#fff' }}>Digitalizar Código</h3>
-              <button onClick={() => setShowBarcodeScanner(false)} style={{ background: 'none', border: 'none', color: 'var(--color-text-secondary)', fontSize: '1.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-                <X size={20} />
+          <div className="glass-panel barcode-modal-enter" style={customBarcodeModalContentStyle}>
+
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#fff', margin: 0 }}>Digitalizar Código</h3>
+                <p style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', margin: 0, marginTop: '2px' }}>EAN-13, EAN-8, QR Code</p>
+              </div>
+              <button
+                onClick={() => { stopScanning(); setShowBarcodeScanner(false); }}
+                style={{ width: '36px', height: '36px', borderRadius: '50%', border: '1px solid var(--border-glass)', background: 'rgba(255,255,255,0.05)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+              >
+                <X size={18} />
               </button>
             </div>
 
-            {/* Camera feed area */}
-            <div style={{ position: 'relative', width: '100%', height: '220px', borderRadius: '12px', overflow: 'hidden', backgroundColor: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border-glass)' }}>
-              <div id="barcode-reader-review" style={{ width: '100%', height: '100%' }}></div>
+            {/* Camera Viewfinder */}
+            <div style={{ position: 'relative', width: '100%', height: '230px', borderRadius: '14px', overflow: 'hidden', backgroundColor: '#000', border: '1px solid rgba(16,185,129,0.2)' }}>
+              <div id="barcode-reader-review" style={{ position: 'absolute', inset: 0 }} />
+
               {!isScanning && (
-                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', color: 'var(--color-text-secondary)', fontSize: '0.8rem' }}>
-                  <Loader2 size={24} style={{ animation: 'spin 1.5s linear infinite' }} />
-                  <span>A aceder à câmara...</span>
+                <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '10px', background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}>
+                  <Loader2 size={28} style={{ animation: 'spin 1.2s linear infinite', color: '#10b981' }} />
+                  <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>A aceder à câmara...</span>
                 </div>
               )}
+
               {isScanning && (
-                <div style={{ position: 'absolute', top: '50%', left: '10%', right: '10%', height: '2px', backgroundColor: '#ef4444', opacity: 0.8, boxShadow: '0 0 8px #ef4444', animation: 'scan 1.5s linear infinite' }}></div>
+                <>
+                  <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(0,0,0,0.45) 0%, transparent 25%, transparent 75%, rgba(0,0,0,0.45) 100%)' }} />
+                  <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '68%', height: '55%', borderRadius: '4px' }}>
+                    {[{top:0,left:0,borderTop:'3px solid #10b981',borderLeft:'3px solid #10b981',borderTopLeftRadius:'4px'},{top:0,right:0,borderTop:'3px solid #10b981',borderRight:'3px solid #10b981',borderTopRightRadius:'4px'},{bottom:0,left:0,borderBottom:'3px solid #10b981',borderLeft:'3px solid #10b981',borderBottomLeftRadius:'4px'},{bottom:0,right:0,borderBottom:'3px solid #10b981',borderRight:'3px solid #10b981',borderBottomRightRadius:'4px'}].map((corner, i) => (
+                      <div key={i} style={{ position: 'absolute', width: '22px', height: '22px', ...corner }} />
+                    ))}
+                    <div style={{ position: 'absolute', left: '4px', right: '4px', height: '2px', background: 'linear-gradient(90deg, transparent, #10b981, #34d399, #10b981, transparent)', boxShadow: '0 0 10px #10b981, 0 0 20px rgba(16,185,129,0.4)', animation: 'laserScan 2s ease-in-out infinite', borderRadius: '2px' }} />
+                  </div>
+                </>
               )}
             </div>
-            
-            <p style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', fontStyle: 'italic', textAlign: 'center' }}>
-              Aponte a câmara para o código de barras
+
+            <p style={{ fontSize: '0.73rem', color: 'var(--color-text-muted)', textAlign: 'center', margin: '-4px 0' }}>
+              Aponte para o código de barras do produto
             </p>
 
-            <div style={{ width: '100%', height: '1px', backgroundColor: 'var(--border-glass)', margin: '4px 0' }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ flex: 1, height: '1px', background: 'var(--border-glass)' }} />
+              <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>ou insira manualmente</span>
+              <div style={{ flex: 1, height: '1px', background: 'var(--border-glass)' }} />
+            </div>
 
-            {/* Manual Barcode Input */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', textAlign: 'left' }}>
-              <label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', fontWeight: 600 }}>Ou insira manualmente:</label>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <input
-                  type="text"
-                  placeholder="Código de barras..."
-                  value={barcodeInput}
-                  onChange={(e) => setBarcodeInput(e.target.value)}
-                  style={{ flex: 1, padding: '10px 12px', backgroundColor: 'var(--bg-input)', border: '1px solid var(--border-glass)', borderRadius: '10px', fontSize: '15px', color: '#fff' }}
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleBarcodeSubmit(barcodeInput); }}
-                />
-                <button
-                  type="button"
-                  onClick={() => handleBarcodeSubmit(barcodeInput)}
-                  style={{ padding: '0 16px', borderRadius: '10px', border: 'none', background: 'var(--grad-calories)', color: '#fff', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}
-                >
-                  Procurar
-                </button>
-              </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input
+                type="number"
+                inputMode="numeric"
+                placeholder="Ex: 5601234567890"
+                value={barcodeInput}
+                onChange={(e) => setBarcodeInput(e.target.value)}
+                style={{ flex: 1, padding: '11px 14px', backgroundColor: 'var(--bg-input)', border: '1px solid var(--border-glass)', borderRadius: '10px', fontSize: '15px', color: '#fff', outline: 'none' }}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleBarcodeSubmit(barcodeInput); }}
+              />
+              <button
+                type="button"
+                onClick={() => handleBarcodeSubmit(barcodeInput)}
+                disabled={!barcodeInput.trim()}
+                style={{ padding: '0 18px', borderRadius: '10px', border: 'none', background: barcodeInput.trim() ? 'var(--grad-calories)' : 'rgba(255,255,255,0.05)', color: barcodeInput.trim() ? '#fff' : 'var(--color-text-muted)', fontWeight: 700, fontSize: '0.85rem', cursor: barcodeInput.trim() ? 'pointer' : 'not-allowed', transition: 'all 0.2s', whiteSpace: 'nowrap' }}
+              >
+                Procurar
+              </button>
             </div>
           </div>
         </div>
@@ -1542,22 +1562,25 @@ const customBarcodeModalOverlayStyle: React.CSSProperties = {
   left: 0,
   right: 0,
   bottom: 0,
-  backgroundColor: 'rgba(0, 0, 0, 0.75)',
-  backdropFilter: 'blur(10px)',
+  backgroundColor: 'rgba(0, 0, 0, 0.80)',
+  backdropFilter: 'blur(12px)',
+  WebkitBackdropFilter: 'blur(12px)',
   zIndex: 10000,
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  padding: '16px',
+  padding: '20px',
+  paddingBottom: 'calc(20px + env(safe-area-inset-bottom, 0px))',
 };
 
 const customBarcodeModalContentStyle: React.CSSProperties = {
   width: '100%',
-  maxWidth: '360px',
+  maxWidth: '380px',
   padding: '20px',
   display: 'flex',
   flexDirection: 'column',
-  gap: '14px',
-  boxShadow: '0 15px 45px rgba(0,0,0,0.6)',
-  borderRadius: '16px',
+  gap: '16px',
+  boxShadow: '0 20px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(16,185,129,0.1)',
+  borderRadius: '20px',
 };
+
