@@ -26,7 +26,7 @@ const DEFAULT_PROFILE = {
 };
 
 const DEFAULT_SETTINGS: AppSettings = {
-  geminiApiKey: '',
+  geminiApiKey: import.meta.env.VITE_GEMINI_API_KEY || '',
   model: 'gemini-2.5-flash',
   goals: {
     calories: 2000,
@@ -35,9 +35,9 @@ const DEFAULT_SETTINGS: AppSettings = {
     fats: 65,
   },
   profile: DEFAULT_PROFILE,
-  useSupabase: false,
-  supabaseUrl: '',
-  supabaseAnonKey: '',
+  useSupabase: !!import.meta.env.VITE_SUPABASE_URL,
+  supabaseUrl: import.meta.env.VITE_SUPABASE_URL || '',
+  supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY || '',
 };
 
 export const getSettings = (): AppSettings => {
