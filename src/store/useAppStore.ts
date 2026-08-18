@@ -8,7 +8,7 @@ interface AppState {
   currentUser: { id: string; email: string } | null;
   settings: AppSettings;
   meals: Meal[];
-  activeTab: 'diary' | 'progress';
+  activeTab: 'diary' | 'favorites' | 'progress' | 'profile';
   editingMeal: Meal | null;
   pendingAnalysis: {
     meal_type: MealType;
@@ -35,7 +35,7 @@ interface AppState {
   setSettings: (settings: AppSettings) => void;
   saveSettingsCloud: (settings: AppSettings) => Promise<void>;
   setMeals: (meals: Meal[]) => void;
-  setActiveTab: (tab: 'diary' | 'progress') => void;
+  setActiveTab: (tab: 'diary' | 'favorites' | 'progress' | 'profile') => void;
   setEditingMeal: (meal: Meal | null) => void;
   setPendingAnalysis: (analysis: any | null) => void;
   showToast: (message: string, type?: 'success' | 'error' | 'info') => void;

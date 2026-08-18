@@ -1,13 +1,30 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useAppStore } from './store/useAppStore';
 import { getLoggedInUser, dbSignOut, deleteMealDb, insertMeal } from './utils/supabase';
 import { MealLogger } from './components/MealLogger';
 import { MealReview } from './components/MealReview';
 import { Dashboard } from './components/Dashboard';
 import { ProgressTracker } from './components/ProgressTracker';
-import { Settings } from './components/Settings';
 import { Auth } from './components/Auth';
-import { Settings as SettingsIcon, Sparkles, LogOut, Calendar, TrendingUp, User, CheckCircle2, AlertCircle, Info } from 'lucide-react';
+import { ProfileView } from './components/ProfileView';
+import { getFavorites, deleteFavorite } from './utils/storage';
+import type { FavoriteMeal, MealType } from './types';
+import { 
+  Sparkles, 
+  Calendar, 
+  TrendingUp, 
+  User, 
+  CheckCircle2, 
+  AlertCircle, 
+  Info, 
+  Star, 
+  Plus, 
+  X, 
+  Camera, 
+  Search, 
+  Trash2, 
+  Zap 
+} from 'lucide-react';
 import './App.css';
 
 function App() {
@@ -30,11 +47,57 @@ function App() {
     confirmAction,
     isInitializing,
     setIsInitializing,
-    syncSettingsFromCloud,
-    showSettings
+    syncSettingsFromCloud
   } = useAppStore();
 
-  // Check login session on mount
+  // New navigation & plus menu states
+  const [showAddMenu, setShowAddMenu] = useState(false);
+  const [activeLoggerMode, setActiveLoggerMode] = useState<'ai' | 'search' | 'quick' | null>(null);
+  const [favoritesList, setFavoritesList] = useState<FavoriteMeal[]>([]);
+
+  useEffect(() => {
+    if (activeTab === 'favorites') {
+      setFavoritesList(getFavorites());
+    }
+  }, [activeTab]);
+
+  const handleRemoveFavorite = (id: string) => {
+    deleteFavorite(id);
+    setFavoritesList(getFavorites());
+    showToast('Refeição removida dos favoritos.', 'info');
+  };
+
+  const handleLogFavoriteInstantly = async (fav: FavoriteMeal) => {
+    const hour = new Date().getHours();
+    let meal_type: MealType = 'lunch';
+    if (hour >= 6 && hour < 11) meal_type = 'breakfast';
+    else if (hour >= 11 && hour < 15) meal_type = 'lunch';
+    else if (hour >= 15 && hour < 19) meal_type = 'snack';
+    else if (hour >= 19 && hour < 22) meal_type = 'dinner';
+    else meal_type = 'supper';
+
+    const total_calories = fav.items.reduce((sum, item) => sum + item.calories, 0);
+    const total_protein = fav.items.reduce((sum, item) => sum + item.protein, 0);
+    const total_carbs = fav.items.reduce((sum, item) => sum + item.carbs, 0);
+    const total_fats = fav.items.reduce((sum, item) => sum + item.fats, 0);
+
+    const newMeal = {
+      id: Math.random().toString(36).substring(2, 11) + '-' + Date.now().toString(),
+      timestamp: new Date().toISOString(),
+      meal_type,
+      items: fav.items,
+      photos: [] as string[],
+      total_calories,
+      total_protein,
+      total_carbs,
+      total_fats,
+      notes: `Registado instantaneamente dos favoritos: ${fav.name}`
+    };
+    
+    await insertMeal(newMeal);
+    await loadMeals();
+    showToast('Refeição favorita registada!', 'success');
+  };
   useEffect(() => {
     const initSession = async () => {
       const user = getLoggedInUser();
@@ -150,50 +213,11 @@ function App() {
         </div>
       )}
 
-      {/* App Header */}
-      <header className="glass-panel" style={headerStyle}>
-        <div style={logoContainerStyle}>
-          <div style={logoIconStyle}>
-            <Sparkles size={20} style={{ color: '#fff' }} />
-          </div>
-          <div>
-            <h1 style={logoTextStyle}>AppCal</h1>
-            <span style={logoSubStyle}>Nutrição Inteligente por IA</span>
-          </div>
-        </div>
-
-        <div style={headerRightStyle}>
-          {/* User Email Indicator */}
-          <div style={userChipStyle} title={`Sessão iniciada como ${currentUser.email}`}>
-            <User size={14} />
-            <span style={userEmailStyle}>{currentUser.email}</span>
-          </div>
-
-          {/* Settings gear */}
-          <button
-            onClick={() => useAppStore.setState({ showSettings: true })}
-            style={headerIconButtonStyle}
-            title="Definições"
-          >
-            <SettingsIcon size={18} />
-          </button>
-
-          {/* Logout button */}
-          <button
-            onClick={handleLogout}
-            style={{ ...headerIconButtonStyle, color: 'var(--macro-protein)' }}
-            title="Terminar Sessão"
-          >
-            <LogOut size={18} />
-          </button>
-        </div>
-      </header>
-
       {/* Main Content Grid */}
-      <main style={mainContentGridStyle}>
+      <main style={{ width: '100%', flex: 1, display: 'flex', flexDirection: 'column' }}>
         {editingMeal ? (
           /* Edit Mode Review screen */
-          <div style={{ gridColumn: '1 / -1' }}>
+          <div style={{ width: '100%' }}>
             <MealReview
               initialMealType={editingMeal.meal_type}
               initialItems={editingMeal.items}
@@ -206,7 +230,7 @@ function App() {
           </div>
         ) : pendingAnalysis ? (
           /* Analysis Review screen (full width overlay look) */
-          <div style={{ gridColumn: '1 / -1' }}>
+          <div style={{ width: '100%' }}>
             <MealReview
               initialMealType={pendingAnalysis.meal_type}
               initialItems={pendingAnalysis.items}
@@ -218,32 +242,96 @@ function App() {
             />
           </div>
         ) : activeTab === 'diary' ? (
-          /* TAB 1: DIARY (Split Dashboard + Logger view) */
-          <>
-            {/* Left side: AI Registry */}
-            <section style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <MealLogger
-                apiKey={settings.geminiApiKey}
-                model={settings.model}
-                onAnalysisComplete={setPendingAnalysis}
-                onInstantLog={handleSaveMeal}
-              />
-            </section>
+          /* TAB 1: DIARY (Dashboard Progress & History only) */
+          <div style={{ maxWidth: '650px', margin: '0 auto', width: '100%' }}>
+            <Dashboard
+              meals={meals}
+              goals={settings.goals}
+              onDeleteMeal={handleDeleteMeal}
+              onEditMeal={setEditingMeal}
+              showToast={showToast}
+            />
+          </div>
+        ) : activeTab === 'favorites' ? (
+          /* TAB 2: FAVORITES LIST */
+          <div style={{ maxWidth: '500px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div className="glass-panel" style={{ padding: '20px' }}>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#fff', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Star size={20} style={{ color: 'var(--macro-fats)' }} />
+                <span>Refeições Favoritas</span>
+              </h2>
+              <p style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', margin: 0, marginTop: '4px' }}>
+                Guarde refeições a partir do seu diário para as registar instantaneamente no futuro.
+              </p>
+            </div>
 
-            {/* Right side: Dashboard Progress & History */}
-            <section style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <Dashboard
-                meals={meals}
-                goals={settings.goals}
-                onDeleteMeal={handleDeleteMeal}
-                onEditMeal={setEditingMeal}
-                showToast={showToast}
-              />
-            </section>
-          </>
-        ) : (
-          /* TAB 2: PROGRESS (Weight Log & Adherence Charts) */
-          <div style={{ gridColumn: '1 / -1' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {favoritesList.length === 0 ? (
+                <div className="glass-panel" style={{ textAlign: 'center', padding: '36px', color: 'var(--color-text-secondary)' }}>
+                  <Star size={24} style={{ color: 'rgba(255,255,255,0.1)', marginBottom: '8px' }} />
+                  <p style={{ fontSize: '0.85rem', margin: 0 }}>Nenhuma refeição favorita guardada.</p>
+                  <p style={{ fontSize: '0.73rem', color: 'var(--color-text-muted)', margin: 0, marginTop: '4px' }}>
+                    Clique na estrela (favorito) nas refeições do Diário para guardá-las aqui.
+                  </p>
+                </div>
+              ) : (
+                favoritesList.map((fav) => (
+                  <div key={fav.id} className="glass-panel" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <h3 style={{ fontSize: '0.95rem', fontWeight: 700, margin: 0 }}>{fav.name}</h3>
+                      <button 
+                        onClick={() => handleRemoveFavorite(fav.id)} 
+                        style={{ background: 'rgba(239,68,68,0.1)', border: 'none', color: '#f43f5e', width: '30px', height: '30px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                        title="Remover"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                      {fav.items.map((item, idx) => (
+                        <div key={idx} style={{ fontSize: '0.7rem', padding: '3px 8px', borderRadius: '6px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-glass)' }}>
+                          {item.name} ({item.weight_g}g)
+                        </div>
+                      ))}
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '8px', marginTop: '4px' }}>
+                      <div style={{ display: 'flex', gap: '8px', fontSize: '0.72rem', color: 'var(--color-text-secondary)' }}>
+                        <span style={{ color: 'var(--macro-calories)' }}>{fav.total_calories} kcal</span>
+                        <span>P: {fav.total_protein}g</span>
+                        <span>H: {fav.total_carbs}g</span>
+                        <span>L: {fav.total_fats}g</span>
+                      </div>
+
+                      <button
+                        onClick={() => handleLogFavoriteInstantly(fav)}
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: '8px',
+                          border: 'none',
+                          background: 'var(--grad-calories)',
+                          color: '#fff',
+                          fontWeight: 700,
+                          fontSize: '0.75rem',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        <Zap size={11} />
+                        <span>Registar</span>
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        ) : activeTab === 'progress' ? (
+          /* TAB 3: PROGRESS (Weight Log & Adherence Charts) */
+          <div style={{ width: '100%' }}>
             <ProgressTracker
               goals={settings.goals}
               meals={meals}
@@ -251,8 +339,146 @@ function App() {
               showToast={showToast}
             />
           </div>
+        ) : (
+          /* TAB 4: PROFILE & CATEGORIZED SETTINGS */
+          <div style={{ maxWidth: '600px', margin: '0 auto', width: '100%' }}>
+            <ProfileView
+              onSettingsSaved={handleSettingsSaved}
+              onLogout={handleLogout}
+              meals={meals}
+              showToast={showToast}
+            />
+          </div>
         )}
       </main>
+
+      {/* Floating Add Option Menu (Dim Overlay) */}
+      {showAddMenu && (
+        <div 
+          onClick={() => setShowAddMenu(false)} 
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            backdropFilter: 'blur(6px)',
+            WebkitBackdropFilter: 'blur(6px)',
+            zIndex: 10000,
+            display: 'flex',
+            alignItems: 'flex-end',
+            justifyContent: 'center',
+            paddingBottom: '100px',
+          }}
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()} 
+            className="glass-panel animate-pulse-slow"
+            style={{
+              width: 'calc(100% - 32px)',
+              maxWidth: '360px',
+              padding: '20px',
+              borderRadius: '24px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+              <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800 }}>Registar Refeição</h4>
+              <button 
+                onClick={() => setShowAddMenu(false)} 
+                style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <button
+              onClick={() => {
+                setActiveLoggerMode('ai');
+                setShowAddMenu(false);
+              }}
+              style={addMenuOptionButtonStyle}
+            >
+              <div style={{ ...addMenuIconStyle, background: 'rgba(16, 185, 129, 0.1)', color: 'var(--macro-calories)' }}>
+                <Camera size={20} />
+              </div>
+              <div style={{ textAlign: 'left' }}>
+                <span style={addMenuTitleStyle}>Análise de Foto por IA</span>
+                <p style={addMenuDescStyle}>Tire uma foto ou carregue da galeria para estimar macros.</p>
+              </div>
+            </button>
+
+            <button
+              onClick={() => {
+                setActiveLoggerMode('search');
+                setShowAddMenu(false);
+              }}
+              style={addMenuOptionButtonStyle}
+            >
+              <div style={{ ...addMenuIconStyle, background: 'rgba(59, 130, 246, 0.1)', color: 'var(--macro-carbs)' }}>
+                <Search size={20} />
+              </div>
+              <div style={{ textAlign: 'left' }}>
+                <span style={addMenuTitleStyle}>Pesquisa de Alimentos</span>
+                <p style={addMenuDescStyle}>Pesquise no Open Food Facts ou código de barras.</p>
+              </div>
+            </button>
+
+            <button
+              onClick={() => {
+                setActiveLoggerMode('quick');
+                setShowAddMenu(false);
+              }}
+              style={addMenuOptionButtonStyle}
+            >
+              <div style={{ ...addMenuIconStyle, background: 'rgba(244, 63, 94, 0.1)', color: 'var(--macro-protein)' }}>
+                <Plus size={20} />
+              </div>
+              <div style={{ textAlign: 'left' }}>
+                <span style={addMenuTitleStyle}>Registo Rápido Manual</span>
+                <p style={addMenuDescStyle}>Insira calorias e macros manualmente.</p>
+              </div>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Fullscreen Modal Logger */}
+      {activeLoggerMode && (
+        <div 
+          style={loggerModalOverlayStyle}
+        >
+          {/* Glassmorphic header for the logger modal */}
+          <header className="glass-panel" style={loggerModalHeaderStyle}>
+            <h2 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0 }}>Registar Refeição</h2>
+            <button 
+              onClick={() => setActiveLoggerMode(null)}
+              style={loggerModalCloseButtonStyle}
+            >
+              <X size={18} />
+            </button>
+          </header>
+
+          <div style={loggerModalContentStyle} className="hide-scrollbar">
+            <div style={{ maxWidth: '500px', margin: '0 auto', width: '100%' }}>
+              <MealLogger
+                apiKey={settings.geminiApiKey}
+                model={settings.model}
+                onAnalysisComplete={(result) => {
+                  setPendingAnalysis(result);
+                  setActiveLoggerMode(null);
+                }}
+                onInstantLog={(meal) => {
+                  handleSaveMeal(meal);
+                  setActiveLoggerMode(null);
+                }}
+                initialMode={activeLoggerMode}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* iOS styled Bottom Navigation Bar (Floating glassmorphic look) */}
       {!pendingAnalysis && !editingMeal && (
@@ -261,27 +487,43 @@ function App() {
             onClick={() => setActiveTab('diary')}
             style={{ ...bottomTabButtonStyle, ...(activeTab === 'diary' ? activeBottomTabStyle : {}) }}
           >
-            <Calendar size={22} />
+            <Calendar size={20} />
             <span>Diário</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('favorites')}
+            style={{ ...bottomTabButtonStyle, ...(activeTab === 'favorites' ? activeBottomTabStyle : {}) }}
+          >
+            <Star size={20} />
+            <span>Favoritos</span>
+          </button>
+
+          {/* Center glowing Plus Button */}
+          <button
+            onClick={() => setShowAddMenu(true)}
+            style={plusButtonStyle}
+            aria-label="Adicionar Refeição"
+          >
+            <Plus size={28} />
           </button>
           
           <button
             onClick={() => setActiveTab('progress')}
             style={{ ...bottomTabButtonStyle, ...(activeTab === 'progress' ? activeBottomTabStyle : {}) }}
           >
-            <TrendingUp size={22} />
+            <TrendingUp size={20} />
             <span>Progresso</span>
           </button>
-        </nav>
-      )}
 
-      {/* Settings Modal Dialog */}
-      {showSettings && (
-        <Settings
-          onSettingsSaved={handleSettingsSaved}
-          onClose={() => useAppStore.setState({ showSettings: false })}
-          showToast={showToast}
-        />
+          <button
+            onClick={() => setActiveTab('profile')}
+            style={{ ...bottomTabButtonStyle, ...(activeTab === 'profile' ? activeBottomTabStyle : {}) }}
+          >
+            <User size={20} />
+            <span>Perfil</span>
+          </button>
+        </nav>
       )}
     </div>
   );
@@ -308,107 +550,22 @@ const appLayoutContainerStyle: React.CSSProperties = {
   minHeight: '100dvh',
 };
 
-const headerStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  padding: '10px 16px',
-  borderRadius: '16px',
-};
-
-const logoContainerStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: '10px',
-};
-
-const logoIconStyle: React.CSSProperties = {
-  width: '34px',
-  height: '34px',
-  borderRadius: '8px',
-  background: 'var(--grad-calories)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  boxShadow: '0 4px 10px rgba(16, 185, 129, 0.3)',
-};
-
-const logoTextStyle: React.CSSProperties = {
-  fontSize: '1.25rem',
-  fontWeight: 800,
-  lineHeight: 1.1,
-  background: 'linear-gradient(90deg, #fff 0%, #cbd5e1 100%)',
-  WebkitBackgroundClip: 'text',
-  WebkitTextFillColor: 'transparent',
-};
-
-const logoSubStyle: React.CSSProperties = {
-  fontSize: '0.7rem',
-  color: 'var(--color-text-secondary)',
-};
-
-const headerRightStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: '8px',
-};
-
-const userChipStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: '6px',
-  padding: '6px 10px',
-  borderRadius: '12px',
-  fontSize: '0.75rem',
-  fontWeight: 600,
-  backgroundColor: 'rgba(255, 255, 255, 0.03)',
-  border: '1px solid var(--border-glass)',
-  color: 'var(--color-text-secondary)',
-  maxWidth: '120px',
-  overflow: 'hidden',
-};
-
-const userEmailStyle: React.CSSProperties = {
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
-};
-
-const headerIconButtonStyle: React.CSSProperties = {
-  width: '32px',
-  height: '32px',
-  borderRadius: '8px',
-  border: '1px solid var(--border-glass)',
-  background: 'rgba(255,255,255,0.02)',
-  color: 'var(--color-text-secondary)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  cursor: 'pointer',
-  transition: 'all 0.2s',
-  WebkitTapHighlightColor: 'transparent',
-};
-
-const mainContentGridStyle: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-  gap: '16px',
-  alignItems: 'start',
-};
+// Old header and layout styles removed (Navigation moved to bottom and pages layout restructured)
 
 const bottomNavStyle: React.CSSProperties = {
   position: 'fixed',
-  bottom: 'calc(16px + env(safe-area-inset-bottom))',
+  bottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
   left: '50%',
   transform: 'translateX(-50%)',
   width: 'calc(100% - 32px)',
-  maxWidth: '400px',
+  maxWidth: '460px',
   display: 'flex',
   justifyContent: 'space-around',
-  padding: '6px',
+  alignItems: 'center',
+  padding: '6px 12px',
   borderRadius: '30px',
   zIndex: 999,
-  boxShadow: '0 8px 30px rgba(0,0,0,0.5)',
+  boxShadow: '0 12px 40px rgba(0,0,0,0.5)',
 };
 
 const bottomTabButtonStyle: React.CSSProperties = {
@@ -502,7 +659,100 @@ const customModalConfirmButtonStyle: React.CSSProperties = {
   fontWeight: 700,
   cursor: 'pointer',
   WebkitTapHighlightColor: 'transparent',
-  boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)',
+};
+
+const plusButtonStyle: React.CSSProperties = {
+  width: '52px',
+  height: '52px',
+  borderRadius: '50%',
+  background: 'var(--grad-calories)',
+  color: '#fff',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  border: 'none',
+  cursor: 'pointer',
+  boxShadow: '0 8px 20px rgba(16, 185, 129, 0.35)',
+  transform: 'translateY(-14px)',
+  flexShrink: 0,
+  WebkitTapHighlightColor: 'transparent',
+  transition: 'all 0.2s',
+};
+
+const addMenuOptionButtonStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '12px',
+  padding: '12px',
+  borderRadius: '16px',
+  border: '1px solid var(--border-glass)',
+  background: 'rgba(255, 255, 255, 0.02)',
+  color: '#fff',
+  cursor: 'pointer',
+  transition: 'all 0.2s',
+  textAlign: 'left',
+  width: '100%',
+  WebkitTapHighlightColor: 'transparent',
+};
+
+const addMenuIconStyle: React.CSSProperties = {
+  width: '40px',
+  height: '40px',
+  borderRadius: '12px',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  flexShrink: 0,
+};
+
+const addMenuTitleStyle: React.CSSProperties = {
+  fontSize: '0.85rem',
+  fontWeight: 700,
+  display: 'block',
+};
+
+const addMenuDescStyle: React.CSSProperties = {
+  fontSize: '0.7rem',
+  color: 'var(--color-text-secondary)',
+  margin: 0,
+  marginTop: '2px',
+  lineHeight: 1.3,
+};
+
+const loggerModalOverlayStyle: React.CSSProperties = {
+  position: 'fixed',
+  inset: 0,
+  backgroundColor: 'var(--bg-app)',
+  zIndex: 10000,
+  display: 'flex',
+  flexDirection: 'column',
+};
+
+const loggerModalHeaderStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  padding: 'calc(env(safe-area-inset-top, 16px) + 8px) 16px 12px 16px',
+  borderBottom: '1px solid var(--border-glass)',
+};
+
+const loggerModalCloseButtonStyle: React.CSSProperties = {
+  background: 'rgba(255,255,255,0.05)',
+  border: '1px solid var(--border-glass)',
+  borderRadius: '50%',
+  width: '36px',
+  height: '36px',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  color: '#fff',
+  cursor: 'pointer',
+};
+
+const loggerModalContentStyle: React.CSSProperties = {
+  flex: 1,
+  overflowY: 'auto',
+  padding: '16px 16px calc(16px + env(safe-area-inset-bottom, 0px)) 16px',
 };
 
 const customToastStyle = (type: 'success' | 'error' | 'info'): React.CSSProperties => {

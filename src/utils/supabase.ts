@@ -223,6 +223,38 @@ export const dbSignOut = async (): Promise<void> => {
   localStorage.removeItem('appcal_current_user');
 };
 
+export const dbUpdatePassword = async (newPassword: string): Promise<{ success: boolean; error: string | null }> => {
+  const user = getLoggedInUser();
+  if (!user) return { success: false, error: 'Utilizador não autenticado.' };
+
+  const client = getSupabaseClient();
+  if (client) {
+    const { error } = await client.auth.updateUser({ password: newPassword });
+    if (error) return { success: false, error: error.message };
+
+    // Also update locally in case they fallback
+    const users = getLocalUsers();
+    const updatedUsers = users.map(u => u.id === user.id ? { ...u, passwordHash: newPassword } : u);
+    saveLocalUsers(updatedUsers);
+    return { success: true, error: null };
+  } else {
+    const users = getLocalUsers();
+    const existing = users.find(u => u.id === user.id);
+    if (!existing) {
+      const newUser: LocalUser = {
+        id: user.id,
+        email: user.email,
+        passwordHash: newPassword
+      };
+      saveLocalUsers([...users, newUser]);
+    } else {
+      const updatedUsers = users.map(u => u.id === user.id ? { ...u, passwordHash: newPassword } : u);
+      saveLocalUsers(updatedUsers);
+    }
+    return { success: true, error: null };
+  }
+};
+
 
 // ==========================================
 // DATA SYNC LOGIC (Meals & Ingredients)
