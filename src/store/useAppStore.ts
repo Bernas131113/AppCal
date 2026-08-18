@@ -128,6 +128,8 @@ export const useAppStore = create<AppState>()(
         settings: state.settings,
         meals: state.meals,
         activeTab: state.activeTab,
+        editingMeal: state.editingMeal,
+        pendingAnalysis: state.pendingAnalysis,
       }),
     }
   )

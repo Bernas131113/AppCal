@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { FoodItem, MealType, Meal } from '../types';
 import { Trash2, Plus, Check, X, AlertCircle, Minus, Search, Barcode, ShoppingBag, Loader2 } from 'lucide-react';
 import { generateId, formatNumber } from '../utils/helpers';
-import { Html5Qrcode } from 'html5-qrcode';
+import { BarcodeScanner } from './BarcodeScanner';
 
 interface EditableFoodItem extends FoodItem {
   base: {
@@ -55,9 +55,6 @@ export const MealReview: React.FC<MealReviewProps> = ({
 
   // Barcode Scanner Modal States
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
-  const [barcodeInput, setBarcodeInput] = useState('');
-  const [isScanning, setIsScanning] = useState(false);
-  const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
 
   // Initialize and double-buffer base values to allow proportional calculations
   useEffect(() => {
@@ -151,109 +148,11 @@ export const MealReview: React.FC<MealReviewProps> = ({
     });
   };
 
-  // Barcode Scanner Camera Lifecycle
-  useEffect(() => {
-    if (showBarcodeScanner) {
-      const timer = setTimeout(() => {
-        const scannerId = "barcode-reader-review";
-        const element = document.getElementById(scannerId);
-        if (!element) return;
-        
-        const startCameraScan = async () => {
-          try {
-            const scanner = new Html5Qrcode(scannerId);
-            html5QrCodeRef.current = scanner;
-            
-            // Try exact environment back camera first
-            try {
-              await scanner.start(
-                { facingMode: { exact: "environment" } },
-                {
-                  fps: 10,
-                  qrbox: (width, height) => {
-                    return { width: Math.min(width * 0.85, 240), height: Math.min(height * 0.4, 100) };
-                  }
-                },
-                (decodedText) => {
-                  handleBarcodeSubmit(decodedText);
-                },
-                () => {}
-              );
-            } catch (firstErr) {
-              console.warn("Failing to force exact environment camera in review, trying fallback...", firstErr);
-              // Fallback to any environment or default camera
-              await scanner.start(
-                { facingMode: "environment" },
-                {
-                  fps: 10,
-                  qrbox: (width, height) => {
-                    return { width: Math.min(width * 0.85, 240), height: Math.min(height * 0.4, 100) };
-                  }
-                },
-                (decodedText) => {
-                  handleBarcodeSubmit(decodedText);
-                },
-                () => {}
-              );
-            }
-
-            // Explicitly force playsInline, autoPlay, and muted attributes on the injected video tag
-            const video = element.querySelector('video');
-            if (video) {
-              video.setAttribute('playsinline', 'true');
-              video.setAttribute('webkit-playsinline', 'true');
-              video.setAttribute('autoplay', 'true');
-              video.setAttribute('muted', 'true');
-              video.playsInline = true;
-              video.muted = true;
-              video.play().catch(e => console.warn("Video play promise rejected in review:", e));
-            }
-            setIsScanning(true);
-          } catch (e) {
-            console.error("Erro ao iniciar Html5Qrcode em MealReview:", e);
-          }
-        };
-
-        startCameraScan();
-      }, 400);
-
-      return () => {
-        clearTimeout(timer);
-        stopScanning();
-      };
-    }
-  }, [showBarcodeScanner]);
-
-  const stopScanning = async () => {
-    if (html5QrCodeRef.current) {
-      if (html5QrCodeRef.current.isScanning) {
-        try {
-          await html5QrCodeRef.current.stop();
-        } catch (e) {
-          console.error("Erro ao parar scanner:", e);
-        }
-      }
-      html5QrCodeRef.current = null;
-      setIsScanning(false);
-    }
-  };
-
   const handleBarcodeSubmit = async (code: string) => {
     if (!code.trim()) return;
     setIsSearching(true);
     setError(null);
-    await stopScanning();
     setShowBarcodeScanner(false);
-    setBarcodeInput('');
-    
-    // Tactile feedback on scan success (iOS Safari compatible)
-    if (typeof navigator !== 'undefined' && navigator.vibrate) {
-      try {
-        navigator.vibrate([200]);
-      } catch (err) {
-        // Ignorar se bloqueado ou não suportado
-      }
-    }
     
     try {
       const response = await fetch(`https://world.openfoodfacts.org/api/v2/product/${code.trim()}.json`, {
@@ -880,67 +779,10 @@ export const MealReview: React.FC<MealReviewProps> = ({
 
       {/* Barcode Scanner Modal */}
       {showBarcodeScanner && (
-        <div className="scanner-overlay-fullscreen">
-          {/* Camera Viewfinder Container */}
-          <div className="scanner-camera-container">
-            <div id="barcode-reader-review" />
-          </div>
-
-          {/* Mask / Cutout Overlay */}
-          <div className="scanner-mask-overlay">
-            <div className="scanner-cutout-window">
-              <div className="scanner-corner scanner-corner-tl" />
-              <div className="scanner-corner scanner-corner-tr" />
-              <div className="scanner-corner scanner-corner-bl" />
-              <div className="scanner-corner scanner-corner-br" />
-              <div className="scanner-laser-line" />
-            </div>
-          </div>
-
-          {/* Close Button (Notch safe) */}
-          <button
-            onClick={() => { stopScanning(); setShowBarcodeScanner(false); }}
-            className="scanner-close-btn"
-            aria-label="Fechar leitor"
-          >
-            <span>
-              <X size={22} />
-            </span>
-          </button>
-
-          {/* Bottom Panel (Notch / Home-indicator safe) */}
-          <div className="scanner-bottom-panel">
-            <p className="scanner-instruction">
-              {!isScanning ? 'A aceder à câmara...' : 'Aponte para o código de barras do produto'}
-            </p>
-
-            <div className="scanner-divider">
-              <div className="scanner-divider-line" />
-              <span>ou insira manualmente</span>
-              <div className="scanner-divider-line" />
-            </div>
-
-            <div className="scanner-manual-input-row">
-              <input
-                type="number"
-                inputMode="numeric"
-                placeholder="Ex: 5601234567890"
-                value={barcodeInput}
-                onChange={(e) => setBarcodeInput(e.target.value)}
-                className="scanner-manual-input"
-                onKeyDown={(e) => { if (e.key === 'Enter') handleBarcodeSubmit(barcodeInput); }}
-              />
-              <button
-                type="button"
-                onClick={() => handleBarcodeSubmit(barcodeInput)}
-                disabled={!barcodeInput.trim()}
-                className="scanner-manual-submit-btn"
-              >
-                Procurar
-              </button>
-            </div>
-          </div>
-        </div>
+        <BarcodeScanner
+          onScanSuccess={handleBarcodeSubmit}
+          onClose={() => setShowBarcodeScanner(false)}
+        />
       )}
     </div>
   );
