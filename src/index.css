@@ -359,8 +359,8 @@ button {
 
 .scanner-cutout-window {
   position: relative;
-  width: 270px;
-  height: 170px;
+  width: 240px;
+  height: 100px;
   border-radius: 16px;
   /* Massive black shadow creates the darkened overlay effect everywhere else */
   box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.7);

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAppStore } from './store/useAppStore';
-import { getLoggedInUser, dbSignOut, deleteMealDb, insertMeal } from './utils/supabase';
+import { getLoggedInUser, dbSignOut, deleteMealDb, insertMeal, getSupabaseClient } from './utils/supabase';
 import { MealLogger } from './components/MealLogger';
 import { MealReview } from './components/MealReview';
 import { Dashboard } from './components/Dashboard';
@@ -100,6 +100,19 @@ function App() {
   };
   useEffect(() => {
     const initSession = async () => {
+      try {
+        const client = getSupabaseClient();
+        if (client) {
+          const { data: { session } } = await client.auth.getSession();
+          if (session?.user) {
+            const sessionUser = { id: session.user.id, email: session.user.email };
+            localStorage.setItem('appcal_current_user', JSON.stringify(sessionUser));
+          }
+        }
+      } catch (err) {
+        console.warn("Falha ao recuperar sessão ativa do Supabase:", err);
+      }
+
       const user = getLoggedInUser();
       if (user) {
         setCurrentUser(user);

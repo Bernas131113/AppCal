@@ -12,6 +12,35 @@ interface DashboardProps {
   showToast?: (message: string, type?: 'success' | 'error' | 'info') => void;
 }
 
+export const calculateMealScore = (meal: { total_calories: number; total_protein: number; total_carbs: number; total_fats: number }): { grade: 'A' | 'B' | 'C' | 'D'; color: string } => {
+  const calories = meal.total_calories || 1;
+  const proteinCals = (meal.total_protein || 0) * 4;
+  const fatsCals = (meal.total_fats || 0) * 9;
+  
+  const proteinPct = (proteinCals / calories) * 100;
+  const fatsPct = (fatsCals / calories) * 100;
+  
+  let grade: 'A' | 'B' | 'C' | 'D' = 'B';
+  if (proteinPct >= 22 && fatsPct <= 35) {
+    grade = 'A';
+  } else if (proteinPct >= 12 && fatsPct <= 45) {
+    grade = 'B';
+  } else if (proteinPct >= 6) {
+    grade = 'C';
+  } else {
+    grade = 'D';
+  }
+  
+  const colors = {
+    A: '#10b981', // green
+    B: '#3b82f6', // blue
+    C: '#f59e0b', // amber
+    D: '#ef4444'  // red
+  };
+  
+  return { grade, color: colors[grade] };
+};
+
 export const Dashboard: React.FC<DashboardProps> = ({ meals, goals, onDeleteMeal, onEditMeal, showToast }) => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [favMealToSave, setFavMealToSave] = useState<Meal | null>(null);
@@ -284,7 +313,32 @@ export const Dashboard: React.FC<DashboardProps> = ({ meals, goals, onDeleteMeal
                       {getMealIcon(meal.meal_type)}
                     </div>
                     <div>
-                      <h4 style={{ fontSize: '0.9rem', fontWeight: 700 }}>{getMealTypeLabel(meal.meal_type)}</h4>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <h4 style={{ fontSize: '0.9rem', fontWeight: 700 }}>{getMealTypeLabel(meal.meal_type)}</h4>
+                        {(() => {
+                          const score = calculateMealScore(meal);
+                          return (
+                            <span 
+                              style={{ 
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: '16px',
+                                height: '16px',
+                                borderRadius: '50%',
+                                fontSize: '0.65rem',
+                                fontWeight: 900,
+                                backgroundColor: `${score.color}20`,
+                                color: score.color,
+                                border: `1px solid ${score.color}35`,
+                              }}
+                              title={`Macro Score: ${score.grade}`}
+                            >
+                              {score.grade}
+                            </span>
+                          );
+                        })()}
+                      </div>
                       <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>
                         {new Date(meal.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>

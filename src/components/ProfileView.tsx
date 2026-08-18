@@ -1,19 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import type { AppSettings, UserProfile, Meal } from '../types';
 import { getSettings, saveSettings } from '../utils/storage';
-import { getSupabaseClient, dbUpdatePassword } from '../utils/supabase';
+import { dbUpdatePassword } from '../utils/supabase';
 import { 
   User, 
   PieChart, 
-  Sparkles, 
-  Database, 
   Lock, 
   LogOut, 
   Image as ImageIcon, 
   Save, 
   Loader2, 
   Eye, 
-  EyeOff
+  EyeOff,
+  X
 } from 'lucide-react';
 
 interface ProfileViewProps {
@@ -30,8 +29,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   showToast 
 }) => {
   const [settings, setSettings] = useState<AppSettings>(getSettings());
-  const [testingConnection, setTestingConnection] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string>('all'); // 'all' or 'personal' | 'macros' | 'ai' | 'cloud' | 'security' | 'gallery'
+  const [selectedPhoto, setSelectedPhoto] = useState<{ photo: string; timestamp: string; mealType: string } | null>(null);
 
   // Password state
   const [showPasswordForm, setShowPasswordForm] = useState(false);
@@ -147,12 +146,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     }));
   };
 
-  const handleGeneralChange = (field: keyof AppSettings, value: any) => {
-    setSettings((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
-  };
+
 
   const handleGoalsChange = (field: keyof typeof settings.goals, value: number) => {
     setSettings((prev) => ({
@@ -184,35 +178,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     showToast('Perfil e definições gravados com sucesso!', 'success');
   };
 
-  const handleTestConnection = async () => {
-    setTestingConnection(true);
-    try {
-      const client = getSupabaseClient();
-      if (!client) {
-        throw new Error("Supabase não configurado. Verifique os campos de URL e Chave Anon.");
-      }
-      const { error: authError } = await client.auth.getSession();
-      if (authError) throw new Error(authError.message);
-      
-      const { error: tableError } = await client.from('meals').select('id').limit(1);
-      if (tableError) {
-        if (tableError.code === 'PGRST205' || tableError.message?.includes('does not exist')) {
-          throw new Error("Tabelas não encontradas! Execute o SQL de inicialização no Supabase.");
-        }
-        if (tableError.code === '42501' || tableError.message?.includes('permission denied')) {
-          showToast("✅ Supabase ligado! As tabelas estão criadas e protegidas por RLS.", "success");
-          return;
-        }
-        throw new Error(tableError.message);
-      }
-      showToast("✅ Supabase ligado! Tabelas prontas para sincronização.", "success");
-    } catch (err: any) {
-      console.error(err);
-      showToast(err.message || "Erro de ligação ao Supabase.", "error");
-    } finally {
-      setTestingConnection(false);
-    }
-  };
+
 
   const handlePasswordUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -269,8 +235,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           { id: 'all', label: 'Tudo' },
           { id: 'personal', label: 'Metabolismo' },
           { id: 'macros', label: 'Metas' },
-          { id: 'ai', label: 'IA' },
-          { id: 'cloud', label: 'Sincronização' },
           { id: 'gallery', label: 'Galeria (' + allPhotos.length + ')' },
           { id: 'security', label: 'Conta' }
         ].map(cat => (
@@ -566,112 +530,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           </div>
         )}
 
-        {/* CATEGORY 3: AI INTELLIGENCE */}
-        {(activeCategory === 'all' || activeCategory === 'ai') && (
-          <div className="glass-card" style={sectionCardStyle}>
-            <div style={sectionHeaderStyle}>
-              <Sparkles size={20} style={{ color: 'var(--macro-protein)' }} />
-              <h3 style={sectionTitleStyle}>Inteligência Artificial (Gemini)</h3>
-            </div>
-            
-            <div style={inputGroupStyle}>
-              <label style={inputLabelStyle}>Gemini API Key</label>
-              <input
-                type="password"
-                placeholder="Insira a sua chave API do Google AI Studio..."
-                value={settings.geminiApiKey}
-                onChange={(e) => handleGeneralChange('geminiApiKey', e.target.value)}
-                style={inputFieldStyle}
-              />
-              <p style={helpTextStyle}>
-                Insira a sua chave API Gemini gratuita obtida no AI Studio para realizar análise real de fotos e voz.
-              </p>
-            </div>
-
-            <div style={inputGroupStyle}>
-              <label style={inputLabelStyle}>Modelo de Linguagem</label>
-              <select
-                value={settings.model}
-                onChange={(e) => handleGeneralChange('model', e.target.value)}
-                style={inputFieldStyle}
-              >
-                <option value="gemini-2.5-flash">Gemini 2.5 Flash (Recomendado, Rápido)</option>
-                <option value="gemini-2.5-pro">Gemini 2.5 Pro (Mais Inteligente, Lento)</option>
-                <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
-              </select>
-            </div>
-          </div>
-        )}
-
-        {/* CATEGORY 4: SYNC & CLOUD */}
-        {(activeCategory === 'all' || activeCategory === 'cloud') && (
-          <div className="glass-card" style={sectionCardStyle}>
-            <div style={sectionHeaderStyle}>
-              <Database size={20} style={{ color: 'var(--macro-fats)' }} />
-              <h3 style={sectionTitleStyle}>Sincronização Supabase Cloud</h3>
-            </div>
-
-            <div style={formGroupStyle}>
-              <div style={toggleRowStyle}>
-                <div>
-                  <span style={labelStyle}>Ativar Base de Dados na Nuvem</span>
-                  <p style={helpTextStyle}>Guarda os dados remotamente e sincroniza entre dispositivos.</p>
-                </div>
-                <label style={toggleSwitchStyle}>
-                  <input
-                    type="checkbox"
-                    checked={settings.useSupabase}
-                    onChange={(e) => handleGeneralChange('useSupabase', e.target.checked)}
-                    style={{ display: 'none' }}
-                  />
-                  <span style={toggleSliderStyle(settings.useSupabase)}>
-                    <div style={toggleKnobStyle(settings.useSupabase)} />
-                  </span>
-                </label>
-              </div>
-            </div>
-
-            {settings.useSupabase && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '4px' }}>
-                <div style={inputGroupStyle}>
-                  <label style={inputLabelStyle}>Supabase URL</label>
-                  <input
-                    type="text"
-                    placeholder="https://suaconta.supabase.co"
-                    value={settings.supabaseUrl}
-                    onChange={(e) => handleGeneralChange('supabaseUrl', e.target.value)}
-                    style={inputFieldStyle}
-                  />
-                </div>
-                <div style={inputGroupStyle}>
-                  <label style={inputLabelStyle}>Supabase Anon Key</label>
-                  <input
-                    type="password"
-                    placeholder="eyJhbGciOi..."
-                    value={settings.supabaseAnonKey}
-                    onChange={(e) => handleGeneralChange('supabaseAnonKey', e.target.value)}
-                    style={inputFieldStyle}
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={handleTestConnection}
-                  disabled={testingConnection}
-                  style={testConnectionButtonStyle}
-                >
-                  {testingConnection ? (
-                    <>
-                      <Loader2 size={14} className="animate-spin" />
-                      <span>A ligar...</span>
-                    </>
-                  ) : (
-                    <span>Testar Ligação ao Supabase</span>
-                  )}
-                </button>
-              </div>
-            )}
-          </div>
-        )}
+        {/* IA and Cloud synchronization configurations hidden from profile view to keep UI clean */}
 
         {/* Action button for settings save (Only visible if showing settings fields) */}
         {activeCategory !== 'gallery' && activeCategory !== 'security' && (
@@ -706,8 +565,9 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               {allPhotos.map((item, idx) => (
                 <div 
                   key={idx} 
-                  className="glass-card" 
-                  style={photoThumbnailContainerStyle}
+                  className="glass-card photo-hover-scale" 
+                  style={{ ...photoThumbnailContainerStyle, cursor: 'pointer' }}
+                  onClick={() => setSelectedPhoto(item)}
                   title={`${getMealTypeLabel(item.mealType)} - ${new Date(item.timestamp).toLocaleDateString()}`}
                 >
                   <img src={item.photo} alt="Refeição" style={photoThumbnailStyle} />
@@ -798,6 +658,37 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               <LogOut size={16} />
               <span>Terminar Sessão</span>
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox Overlay */}
+      {selectedPhoto && (
+        <div 
+          onClick={() => setSelectedPhoto(null)}
+          style={lightboxOverlayStyle}
+        >
+          <button 
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setSelectedPhoto(null); }} 
+            style={lightboxCloseButtonStyle}
+            aria-label="Fechar"
+          >
+            <X size={20} />
+          </button>
+          
+          <div 
+            onClick={(e) => e.stopPropagation()} 
+            style={lightboxContentStyle}
+          >
+            <img 
+              src={selectedPhoto.photo} 
+              alt="Foto Ampliada" 
+              style={lightboxImageStyle} 
+            />
+            <div style={lightboxTagStyle}>
+              {getMealTypeLabel(selectedPhoto.mealType)} — {new Date(selectedPhoto.timestamp).toLocaleDateString()} {new Date(selectedPhoto.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </div>
           </div>
         </div>
       )}
@@ -952,22 +843,7 @@ const calcSummaryCardStyle: React.CSSProperties = {
   border: '1px solid rgba(16, 185, 129, 0.12)',
 };
 
-const testConnectionButtonStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '11px',
-  borderRadius: '10px',
-  border: '1px solid rgba(255,255,255,0.1)',
-  background: 'rgba(255,255,255,0.02)',
-  color: '#fff',
-  fontSize: '0.8rem',
-  fontWeight: 600,
-  cursor: 'pointer',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: '8px',
-  transition: 'all 0.2s',
-};
+
 
 const submitButtonStyle: React.CSSProperties = {
   width: '100%',
@@ -1064,4 +940,67 @@ const togglePwdVisibilityButtonStyle: React.CSSProperties = {
   border: 'none',
   color: 'var(--color-text-secondary)',
   cursor: 'pointer',
+};
+
+const lightboxOverlayStyle: React.CSSProperties = {
+  position: 'fixed',
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  backgroundColor: 'rgba(0, 0, 0, 0.9)',
+  backdropFilter: 'blur(15px)',
+  WebkitBackdropFilter: 'blur(15px)',
+  zIndex: 11000,
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '20px',
+};
+
+const lightboxCloseButtonStyle: React.CSSProperties = {
+  position: 'absolute',
+  top: 'calc(env(safe-area-inset-top, 20px) + 12px)',
+  right: '20px',
+  background: 'rgba(255, 255, 255, 0.1)',
+  border: '1px solid rgba(255, 255, 255, 0.15)',
+  borderRadius: '50%',
+  width: '40px',
+  height: '40px',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  color: '#fff',
+  cursor: 'pointer',
+  zIndex: 11002,
+  boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+};
+
+const lightboxContentStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  gap: '16px',
+  maxWidth: '90%',
+  maxHeight: '80%',
+};
+
+const lightboxImageStyle: React.CSSProperties = {
+  maxWidth: '100%',
+  maxHeight: '70dvh',
+  objectFit: 'contain',
+  borderRadius: '16px',
+  boxShadow: '0 20px 50px rgba(0,0,0,0.8), 0 0 0 1px rgba(255, 255, 255, 0.1)',
+};
+
+const lightboxTagStyle: React.CSSProperties = {
+  color: '#fff',
+  fontSize: '0.85rem',
+  fontWeight: 600,
+  backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  padding: '8px 16px',
+  borderRadius: '20px',
+  border: '1px solid rgba(255, 255, 255, 0.12)',
+  boxShadow: '0 4px 10px rgba(0,0,0,0.3)',
 };

@@ -171,7 +171,7 @@ export const MealReview: React.FC<MealReviewProps> = ({
                 {
                   fps: 10,
                   qrbox: (width, height) => {
-                    return { width: Math.min(width * 0.8, 280), height: Math.min(height * 0.5, 130) };
+                    return { width: Math.min(width * 0.85, 240), height: Math.min(height * 0.4, 100) };
                   }
                 },
                 (decodedText) => {
@@ -187,7 +187,7 @@ export const MealReview: React.FC<MealReviewProps> = ({
                 {
                   fps: 10,
                   qrbox: (width, height) => {
-                    return { width: Math.min(width * 0.8, 280), height: Math.min(height * 0.5, 130) };
+                    return { width: Math.min(width * 0.85, 240), height: Math.min(height * 0.4, 100) };
                   }
                 },
                 (decodedText) => {

@@ -160,7 +160,7 @@ export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysi
                 {
                   fps: 10,
                   qrbox: (width, height) => {
-                    return { width: Math.min(width * 0.8, 280), height: Math.min(height * 0.5, 130) };
+                    return { width: Math.min(width * 0.85, 240), height: Math.min(height * 0.4, 100) };
                   }
                 },
                 (decodedText) => {
@@ -176,7 +176,7 @@ export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysi
                 {
                   fps: 10,
                   qrbox: (width, height) => {
-                    return { width: Math.min(width * 0.8, 280), height: Math.min(height * 0.5, 130) };
+                    return { width: Math.min(width * 0.85, 240), height: Math.min(height * 0.4, 100) };
                   }
                 },
                 (decodedText) => {
