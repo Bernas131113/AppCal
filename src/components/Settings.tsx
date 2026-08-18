@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { AppSettings, UserProfile } from '../types';
 import { getSettings, saveSettings } from '../utils/storage';
-import { resetSupabaseClient } from '../utils/supabase';
+import { resetSupabaseClient, getSupabaseClient } from '../utils/supabase';
 import { Settings as SettingsIcon, Target, Save, CheckCircle, User, PieChart, Sparkles, Scale, Info } from 'lucide-react';
 
 interface SettingsProps {
@@ -14,6 +14,44 @@ export const Settings: React.FC<SettingsProps> = ({ onSettingsSaved, onClose, sh
   const [settings, setSettings] = useState<AppSettings>(getSettings());
   const [activeTab, setActiveTab] = useState<'profile' | 'macros'>('profile');
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [testingConnection, setTestingConnection] = useState(false);
+
+  const handleTestConnection = async () => {
+    setTestingConnection(true);
+    try {
+      const client = getSupabaseClient();
+      if (!client) {
+        throw new Error("Supabase não configurado. Por favor, define as chaves VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no teu ficheiro .env.");
+      }
+      
+      const { error } = await client
+        .from('meals')
+        .select('id')
+        .limit(1);
+        
+      if (error) {
+        if (error.code === 'PGRST116' || error.message.includes('relation "public.meals" does not exist') || error.message.includes('not found')) {
+          throw new Error("Erro de base de dados: A tabela 'meals' não foi encontrada. Executaste o script SQL do ficheiro 'supabase_guide.txt' no editor de SQL do teu painel Supabase?");
+        }
+        throw error;
+      }
+      
+      if (showToast) {
+        showToast("Ligação ao Supabase ativa! Tabelas prontas na Nuvem.", "success");
+      } else {
+        alert("Ligação ao Supabase ativa! Tabelas prontas na Nuvem.");
+      }
+    } catch (err: any) {
+      console.error(err);
+      if (showToast) {
+        showToast(err.message || "Erro de ligação ao Supabase.", "error");
+      } else {
+        alert(err.message || "Erro de ligação ao Supabase.");
+      }
+    } finally {
+      setTestingConnection(false);
+    }
+  };
 
   // Mifflin-St Jeor TDEE & Macro calculator
   const runCalculations = (profile: UserProfile): { calories: number; protein: number; carbs: number; fats: number; tdee: number; bmr: number } => {
@@ -146,11 +184,38 @@ export const Settings: React.FC<SettingsProps> = ({ onSettingsSaved, onClose, sh
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Sanitize values to ensure no 0 or NaN remains for critical inputs
+    const ageVal = settings.profile.age || 25;
+    const heightVal = settings.profile.height || 175;
+    const weightVal = settings.profile.weight || 70;
+    const adjustmentVal = settings.profile.calorieAdjustment || 300;
+    const fixedProt = settings.profile.fixedProteinPerKg || 2.0;
+    const fixedFat = settings.profile.fixedFatPerKg || 0.8;
+
+    const sanitizedSettings: AppSettings = {
+      ...settings,
+      profile: {
+        ...settings.profile,
+        age: ageVal,
+        height: heightVal,
+        weight: weightVal,
+        calorieAdjustment: adjustmentVal,
+        fixedProteinPerKg: fixedProt,
+        fixedFatPerKg: fixedFat,
+      },
+      goals: {
+        calories: settings.goals.calories || 2000,
+        protein: settings.goals.protein || 140,
+        carbs: settings.goals.carbs || 220,
+        fats: settings.goals.fats || 65,
+      }
+    };
+
     // Validate macro percentages sum if using percentage model
-    if (settings.profile.hasProfile && settings.profile.macroSplitType === 'percentage') {
-      const sum = settings.profile.macroPercentages.protein + 
-                  settings.profile.macroPercentages.carbs + 
-                  settings.profile.macroPercentages.fats;
+    if (sanitizedSettings.profile.hasProfile && sanitizedSettings.profile.macroSplitType === 'percentage') {
+      const sum = sanitizedSettings.profile.macroPercentages.protein + 
+                  sanitizedSettings.profile.macroPercentages.carbs + 
+                  sanitizedSettings.profile.macroPercentages.fats;
       if (sum !== 100) {
         if (showToast) {
           showToast(`Soma de macros deve ser 100%. (Atual: ${sum}%)`, 'error');
@@ -161,9 +226,9 @@ export const Settings: React.FC<SettingsProps> = ({ onSettingsSaved, onClose, sh
       }
     }
 
-    saveSettings(settings);
+    saveSettings(sanitizedSettings);
     resetSupabaseClient();
-    onSettingsSaved(settings);
+    onSettingsSaved(sanitizedSettings);
     setSavedSuccess(true);
     setTimeout(() => {
       setSavedSuccess(false);
@@ -190,7 +255,17 @@ export const Settings: React.FC<SettingsProps> = ({ onSettingsSaved, onClose, sh
             <SettingsIcon size={24} style={{ color: 'var(--macro-calories)' }} />
             <h2 style={{ fontSize: '1.5rem', fontWeight: 700 }}>Definições</h2>
           </div>
-          <button onClick={onClose} style={closeButtonStyle}>&times;</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              type="button"
+              onClick={handleTestConnection}
+              disabled={testingConnection}
+              style={testConnectionButtonStyle}
+            >
+              {testingConnection ? "A testar..." : "Testar BD Cloud"}
+            </button>
+            <button onClick={onClose} style={closeButtonStyle}>&times;</button>
+          </div>
         </div>
 
         {/* Tab Controls */}
@@ -253,8 +328,8 @@ export const Settings: React.FC<SettingsProps> = ({ onSettingsSaved, onClose, sh
                           <label style={labelStyle}>Idade (anos)</label>
                           <input
                             type="number"
-                            value={settings.profile.age}
-                            onChange={(e) => handleProfileChange('age', parseInt(e.target.value) || 18)}
+                            value={settings.profile.age || ''}
+                            onChange={(e) => handleProfileChange('age', parseInt(e.target.value) || 0)}
                             style={inputStyle}
                           />
                         </div>
@@ -275,8 +350,8 @@ export const Settings: React.FC<SettingsProps> = ({ onSettingsSaved, onClose, sh
                           <label style={labelStyle}>Altura (cm)</label>
                           <input
                             type="number"
-                            value={settings.profile.height}
-                            onChange={(e) => handleProfileChange('height', parseInt(e.target.value) || 170)}
+                            value={settings.profile.height || ''}
+                            onChange={(e) => handleProfileChange('height', parseInt(e.target.value) || 0)}
                             style={inputStyle}
                           />
                         </div>
@@ -285,8 +360,8 @@ export const Settings: React.FC<SettingsProps> = ({ onSettingsSaved, onClose, sh
                           <label style={labelStyle}>Peso Atual (kg)</label>
                           <input
                             type="number"
-                            value={settings.profile.weight}
-                            onChange={(e) => handleProfileChange('weight', parseFloat(e.target.value) || 70)}
+                            value={settings.profile.weight || ''}
+                            onChange={(e) => handleProfileChange('weight', parseFloat(e.target.value) || 0)}
                             style={inputStyle}
                           />
                         </div>
@@ -339,8 +414,8 @@ export const Settings: React.FC<SettingsProps> = ({ onSettingsSaved, onClose, sh
                               min="100"
                               max="1000"
                               step="50"
-                              value={settings.profile.calorieAdjustment}
-                              onChange={(e) => handleProfileChange('calorieAdjustment', parseInt(e.target.value) || 300)}
+                              value={settings.profile.calorieAdjustment || ''}
+                              onChange={(e) => handleProfileChange('calorieAdjustment', parseInt(e.target.value) || 0)}
                               style={inputStyle}
                             />
                           </div>
@@ -393,7 +468,7 @@ export const Settings: React.FC<SettingsProps> = ({ onSettingsSaved, onClose, sh
                         <label style={{ ...labelStyle, color: 'var(--macro-calories)' }}>Calorias (kcal)</label>
                         <input
                           type="number"
-                          value={settings.goals.calories}
+                          value={settings.goals.calories || ''}
                           onChange={(e) => handleGoalChange('calories', parseInt(e.target.value) || 0)}
                           style={inputStyle}
                         />
@@ -403,7 +478,7 @@ export const Settings: React.FC<SettingsProps> = ({ onSettingsSaved, onClose, sh
                         <label style={{ ...labelStyle, color: 'var(--macro-protein)' }}>Proteínas (g)</label>
                         <input
                           type="number"
-                          value={settings.goals.protein}
+                          value={settings.goals.protein || ''}
                           onChange={(e) => handleGoalChange('protein', parseInt(e.target.value) || 0)}
                           style={inputStyle}
                         />
@@ -413,7 +488,7 @@ export const Settings: React.FC<SettingsProps> = ({ onSettingsSaved, onClose, sh
                         <label style={{ ...labelStyle, color: 'var(--macro-carbs)' }}>Carboidratos (g)</label>
                         <input
                           type="number"
-                          value={settings.goals.carbs}
+                          value={settings.goals.carbs || ''}
                           onChange={(e) => handleGoalChange('carbs', parseInt(e.target.value) || 0)}
                           style={inputStyle}
                         />
@@ -423,7 +498,7 @@ export const Settings: React.FC<SettingsProps> = ({ onSettingsSaved, onClose, sh
                         <label style={{ ...labelStyle, color: 'var(--macro-fats)' }}>Gorduras (g)</label>
                         <input
                           type="number"
-                          value={settings.goals.fats}
+                          value={settings.goals.fats || ''}
                           onChange={(e) => handleGoalChange('fats', parseInt(e.target.value) || 0)}
                           style={inputStyle}
                         />
@@ -464,7 +539,7 @@ export const Settings: React.FC<SettingsProps> = ({ onSettingsSaved, onClose, sh
                             <label style={{ ...labelStyle, color: 'var(--macro-protein)' }}>Proteínas (%)</label>
                             <input
                               type="number"
-                              value={settings.profile.macroPercentages.protein}
+                              value={settings.profile.macroPercentages.protein || ''}
                               onChange={(e) => handleMacroPercentageChange('protein', parseInt(e.target.value) || 0)}
                               style={inputStyle}
                             />
@@ -474,7 +549,7 @@ export const Settings: React.FC<SettingsProps> = ({ onSettingsSaved, onClose, sh
                             <label style={{ ...labelStyle, color: 'var(--macro-carbs)' }}>Carboidratos (%)</label>
                             <input
                               type="number"
-                              value={settings.profile.macroPercentages.carbs}
+                              value={settings.profile.macroPercentages.carbs || ''}
                               onChange={(e) => handleMacroPercentageChange('carbs', parseInt(e.target.value) || 0)}
                               style={inputStyle}
                             />
@@ -484,7 +559,7 @@ export const Settings: React.FC<SettingsProps> = ({ onSettingsSaved, onClose, sh
                             <label style={{ ...labelStyle, color: 'var(--macro-fats)' }}>Lípidos / Gordura (%)</label>
                             <input
                               type="number"
-                              value={settings.profile.macroPercentages.fats}
+                              value={settings.profile.macroPercentages.fats || ''}
                               onChange={(e) => handleMacroPercentageChange('fats', parseInt(e.target.value) || 0)}
                               style={inputStyle}
                             />
@@ -513,7 +588,7 @@ export const Settings: React.FC<SettingsProps> = ({ onSettingsSaved, onClose, sh
                             <input
                               type="number"
                               step="0.1"
-                              value={settings.profile.fixedProteinPerKg}
+                              value={settings.profile.fixedProteinPerKg || ''}
                               onChange={(e) => handleProfileChange('fixedProteinPerKg', parseFloat(e.target.value) || 0)}
                               style={inputStyle}
                             />
@@ -527,7 +602,7 @@ export const Settings: React.FC<SettingsProps> = ({ onSettingsSaved, onClose, sh
                             <input
                               type="number"
                               step="0.1"
-                              value={settings.profile.fixedFatPerKg}
+                              value={settings.profile.fixedFatPerKg || ''}
                               onChange={(e) => handleProfileChange('fixedFatPerKg', parseFloat(e.target.value) || 0)}
                               style={inputStyle}
                             />
@@ -629,7 +704,7 @@ const modalOverlayStyle: React.CSSProperties = {
 const modalContentStyle: React.CSSProperties = {
   width: '100%',
   maxWidth: '600px',
-  maxHeight: '90vh',
+  maxHeight: 'calc(100dvh - 32px)',
   padding: '24px',
   display: 'flex',
   flexDirection: 'column',
@@ -757,8 +832,20 @@ const selectStyle: React.CSSProperties = {
 
 const gridStyle: React.CSSProperties = {
   display: 'grid',
-  gridTemplateColumns: 'repeat(2, 1fr)',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
   gap: '14px',
+};
+
+const testConnectionButtonStyle: React.CSSProperties = {
+  padding: '6px 12px',
+  borderRadius: '8px',
+  border: '1px solid var(--border-glass)',
+  background: 'rgba(59, 130, 246, 0.15)',
+  color: '#60a5fa',
+  fontSize: '0.75rem',
+  fontWeight: 600,
+  cursor: 'pointer',
+  transition: 'all 0.2s',
 };
 
 const toggleSwitchStyle: React.CSSProperties = {
