@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Camera, Image as ImageIcon, Mic, Square, Trash2, Send, Loader2, Plus, AlertCircle, Search, Star, Zap, ShoppingBag } from 'lucide-react';
+import { Camera, Image as ImageIcon, Mic, Square, Trash2, Send, Loader2, Plus, AlertCircle, Search, Star, Zap, ShoppingBag, Barcode, X } from 'lucide-react';
+import { Html5Qrcode } from 'html5-qrcode';
 import { compressImage } from '../utils/helpers';
 import { analyzeMealWithGemini } from '../utils/gemini';
 import { Waveform } from './Waveform';
@@ -18,6 +19,12 @@ interface MealLoggerProps {
   }) => void;
   onInstantLog: (meal: Meal) => void;
 }
+
+const getNutriment = (nutriments: any, key: string): number => {
+  if (!nutriments) return 0;
+  const val = nutriments[`${key}_100g`] ?? nutriments[key] ?? 0;
+  return Number(val) || 0;
+};
 
 export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysisComplete, onInstantLog }) => {
   const [activeMode, setActiveMode] = useState<'ai' | 'search' | 'quick' | 'fav'>('ai');
@@ -46,6 +53,12 @@ export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysi
   const [selectedSearchProduct, setSelectedSearchProduct] = useState<any | null>(null);
   const [searchWeightGrams, setSearchWeightGrams] = useState(100);
   const [searchSource, setSearchSource] = useState<'off' | 'ai'>('off');
+
+  // Barcode scanner states
+  const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
+  const [barcodeInput, setBarcodeInput] = useState('');
+  const [isScanning, setIsScanning] = useState(false);
+  const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
 
   // Quick Add states
   const [quickName, setQuickName] = useState('');
@@ -176,6 +189,90 @@ export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysi
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
+    }
+  };
+
+  // Barcode Scanner Camera Lifecycle
+  useEffect(() => {
+    if (showBarcodeScanner) {
+      const timer = setTimeout(() => {
+        const scannerId = "barcode-reader-element";
+        const element = document.getElementById(scannerId);
+        if (!element) return;
+        
+        try {
+          const scanner = new Html5Qrcode(scannerId);
+          html5QrCodeRef.current = scanner;
+          
+          scanner.start(
+            { facingMode: "environment" },
+            {
+              fps: 10,
+              qrbox: (width, height) => {
+                return { width: Math.min(width * 0.8, 280), height: Math.min(height * 0.5, 130) };
+              }
+            },
+            (decodedText) => {
+              handleBarcodeSubmit(decodedText);
+            },
+            () => {}
+          ).then(() => {
+            setIsScanning(true);
+          }).catch(err => {
+            console.error("Erro ao iniciar câmara barcode:", err);
+          });
+        } catch (e) {
+          console.error("Erro ao instanciar Html5Qrcode:", e);
+        }
+      }, 400);
+
+      return () => {
+        clearTimeout(timer);
+        stopScanning();
+      };
+    }
+  }, [showBarcodeScanner]);
+
+  const stopScanning = async () => {
+    if (html5QrCodeRef.current) {
+      if (html5QrCodeRef.current.isScanning) {
+        try {
+          await html5QrCodeRef.current.stop();
+        } catch (e) {
+          console.error("Erro ao parar scanner:", e);
+        }
+      }
+      html5QrCodeRef.current = null;
+      setIsScanning(false);
+    }
+  };
+
+  const handleBarcodeSubmit = async (code: string) => {
+    if (!code.trim()) return;
+    setIsSearching(true);
+    setError(null);
+    await stopScanning();
+    setShowBarcodeScanner(false);
+    setBarcodeInput('');
+    
+    try {
+      const response = await fetch(`https://world.openfoodfacts.org/api/v2/product/${code.trim()}.json`, {
+        headers: { 'User-Agent': 'AppCalNutritionApp - Web - Version 1.0 - contact@appcal.com' }
+      });
+      if (!response.ok) throw new Error('Código de barras não encontrado.');
+      const data = await response.json();
+      
+      if (data.status === 1 && data.product) {
+        setSelectedSearchProduct(data.product);
+        setSearchWeightGrams(100); // Default to 100g
+      } else {
+        setError('Produto não encontrado com esse código de barras.');
+      }
+    } catch (err) {
+      console.error(err);
+      setError('Código de barras não encontrado ou erro de rede.');
+    } finally {
+      setIsSearching(false);
     }
   };
 
@@ -570,40 +667,18 @@ export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysi
               onChange={(e) => setSearchQuery(e.target.value)}
               style={searchInputStyle}
             />
+            <button
+              type="button"
+              onClick={() => setShowBarcodeScanner(true)}
+              style={barcodeScannerTriggerButtonStyle}
+              title="Ler código de barras"
+            >
+              <Barcode size={18} />
+            </button>
             <button type="submit" disabled={isSearching} style={searchSubmitButtonStyle}>
               {isSearching ? <Loader2 size={16} style={{ animation: 'spin 1.5s linear infinite' }} /> : <Search size={18} />}
             </button>
           </form>
-
-          {/* Search Portion Overlay */}
-          {selectedSearchProduct && (
-            <div className="glass-card" style={portionCardStyle}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h4 style={{ fontSize: '0.9rem', fontWeight: 700 }}>
-                  {selectedSearchProduct.product_name_pt || selectedSearchProduct.product_name}
-                </h4>
-                <button onClick={() => setSelectedSearchProduct(null)} style={closePortionButtonStyle}>&times;</button>
-              </div>
-              <p style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
-                Marca: {selectedSearchProduct.brands || 'Desconhecida'} | Calorias: {Math.round(Number(selectedSearchProduct.nutriments?.['energy-kcal_100g'] || 0))} kcal/100g
-              </p>
-
-              <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginTop: '10px' }}>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <label style={labelStyle}>Porção em gramas</label>
-                  <input
-                    type="number"
-                    value={searchWeightGrams}
-                    onChange={(e) => setSearchWeightGrams(parseInt(e.target.value) || 0)}
-                    style={inputStyle}
-                  />
-                </div>
-                <button onClick={addSearchedProductToSession} style={addProductButtonStyle}>
-                  <Plus size={16} /> Adicionar
-                </button>
-              </div>
-            </div>
-          )}
 
           {/* Results list */}
           {searchSource === 'ai' && searchResults.length > 0 && (
@@ -796,6 +871,165 @@ export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysi
             <button onClick={handleReviewSession} style={sessionReviewButtonStyle}>
               Continuar para Revisão
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Product Detail Preview Modal */}
+      {selectedSearchProduct && (
+        <div style={customProductModalOverlayStyle}>
+          <div className="glass-panel" style={customProductModalContentStyle}>
+            <div style={customProductModalHeaderStyle}>
+              <h3 style={customProductModalTitleStyle}>
+                {selectedSearchProduct.product_name_pt || selectedSearchProduct.product_name || 'Alimento'}
+              </h3>
+              <span style={customProductModalBrandStyle}>
+                Marca: {selectedSearchProduct.brands || 'Genérico'}
+              </span>
+            </div>
+
+            <div style={customProductModalBodyStyle}>
+              {/* Image Preview (Large!) */}
+              <div style={customProductModalImageContainerStyle}>
+                {selectedSearchProduct.image_front_url || selectedSearchProduct.image_url ? (
+                  <img
+                    src={selectedSearchProduct.image_front_url || selectedSearchProduct.image_url}
+                    alt=""
+                    style={customProductModalImageStyle}
+                  />
+                ) : (
+                  <div style={customProductModalPlaceholderImageStyle}>
+                    <ShoppingBag size={48} style={{ color: 'var(--color-text-muted)' }} />
+                  </div>
+                )}
+              </div>
+
+              {/* Nutrition Facts breakdown per portion size */}
+              <div className="glass-card" style={customProductModalNutritionStyle}>
+                <h4 style={customProductModalSectionTitleStyle}>
+                  Valores Estimados ({searchWeightGrams}g)
+                </h4>
+                
+                {/* Visual macros grid */}
+                <div style={customProductModalMacrosGridStyle}>
+                  <div style={{ ...customProductModalMacroItemStyle, borderColor: 'var(--macro-calories)' }}>
+                    <span style={{ fontSize: '1.1rem', fontWeight: 800 }}>
+                      {Math.round(getNutriment(selectedSearchProduct.nutriments, 'energy-kcal') * searchWeightGrams / 100)}
+                    </span>
+                    <span style={{ fontSize: '0.6rem', color: 'var(--macro-calories)', fontWeight: 700 }}>KCAL</span>
+                  </div>
+                  <div style={{ ...customProductModalMacroItemStyle, borderColor: 'var(--macro-protein)' }}>
+                    <span style={{ fontSize: '1.1rem', fontWeight: 800 }}>
+                      {((getNutriment(selectedSearchProduct.nutriments, 'proteins') * searchWeightGrams) / 100).toFixed(1)}g
+                    </span>
+                    <span style={{ fontSize: '0.6rem', color: 'var(--macro-protein)', fontWeight: 700 }}>PROT</span>
+                  </div>
+                  <div style={{ ...customProductModalMacroItemStyle, borderColor: 'var(--macro-carbs)' }}>
+                    <span style={{ fontSize: '1.1rem', fontWeight: 800 }}>
+                      {((getNutriment(selectedSearchProduct.nutriments, 'carbohydrates') * searchWeightGrams) / 100).toFixed(1)}g
+                    </span>
+                    <span style={{ fontSize: '0.6rem', color: 'var(--macro-carbs)', fontWeight: 700 }}>HC</span>
+                  </div>
+                  <div style={{ ...customProductModalMacroItemStyle, borderColor: 'var(--macro-fats)' }}>
+                    <span style={{ fontSize: '1.1rem', fontWeight: 800 }}>
+                      {((getNutriment(selectedSearchProduct.nutriments, 'fat') * searchWeightGrams) / 100).toFixed(1)}g
+                    </span>
+                    <span style={{ fontSize: '0.6rem', color: 'var(--macro-fats)', fontWeight: 700 }}>LIP</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Portion Control Slider and Input */}
+              <div className="glass-card" style={customProductModalPortionStyle}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <span style={labelStyle}>Quantidade</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: 'var(--bg-input)', border: '1px solid var(--border-glass)', borderRadius: '8px', padding: '4px 8px', width: '90px' }}>
+                    <input
+                      type="number"
+                      value={searchWeightGrams || ''}
+                      onChange={(e) => setSearchWeightGrams(parseInt(e.target.value) || 0)}
+                      style={{ width: '100%', background: 'none', border: 'none', outline: 'none', textAlign: 'right', fontSize: '0.9rem', fontWeight: 700, color: '#fff' }}
+                    />
+                    <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', fontWeight: 600 }}>g</span>
+                  </div>
+                </div>
+                
+                <input
+                  type="range"
+                  min="10"
+                  max="1000"
+                  step="5"
+                  value={searchWeightGrams}
+                  onChange={(e) => setSearchWeightGrams(parseInt(e.target.value) || 10)}
+                  style={{ width: '100%', accentColor: 'var(--macro-calories)', cursor: 'pointer' }}
+                />
+              </div>
+            </div>
+
+            <div style={customProductModalActionsStyle}>
+              <button onClick={() => setSelectedSearchProduct(null)} style={customProductModalCancelButtonStyle}>
+                Cancelar
+              </button>
+              <button onClick={addSearchedProductToSession} style={customProductModalConfirmButtonStyle}>
+                Adicionar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Barcode Scanner Modal */}
+      {showBarcodeScanner && (
+        <div style={customBarcodeModalOverlayStyle}>
+          <div className="glass-panel" style={customBarcodeModalContentStyle}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-glass)', paddingBottom: '12px', marginBottom: '8px' }}>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#fff' }}>Digitalizar Código</h3>
+              <button onClick={() => setShowBarcodeScanner(false)} style={{ background: 'none', border: 'none', color: 'var(--color-text-secondary)', fontSize: '1.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Camera feed area */}
+            <div style={{ position: 'relative', width: '100%', height: '220px', borderRadius: '12px', overflow: 'hidden', backgroundColor: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border-glass)' }}>
+              <div id="barcode-reader-element" style={{ width: '100%', height: '100%' }}></div>
+              {!isScanning && (
+                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', color: 'var(--color-text-secondary)', fontSize: '0.8rem' }}>
+                  <Loader2 size={24} style={{ animation: 'spin 1.5s linear infinite' }} />
+                  <span>A aceder à câmara...</span>
+                </div>
+              )}
+              {isScanning && (
+                <div style={{ position: 'absolute', top: '50%', left: '10%', right: '10%', height: '2px', backgroundColor: '#ef4444', opacity: 0.8, boxShadow: '0 0 8px #ef4444', animation: 'scan 1.5s linear infinite' }}></div>
+              )}
+            </div>
+            
+            <p style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', fontStyle: 'italic', textAlign: 'center' }}>
+              Aponte a câmara para o código de barras
+            </p>
+
+            <div style={{ width: '100%', height: '1px', backgroundColor: 'var(--border-glass)', margin: '4px 0' }} />
+
+            {/* Manual Barcode Input */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', textAlign: 'left' }}>
+              <label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', fontWeight: 600 }}>Ou insira manualmente:</label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input
+                  type="text"
+                  placeholder="Código de barras..."
+                  value={barcodeInput}
+                  onChange={(e) => setBarcodeInput(e.target.value)}
+                  style={{ flex: 1, padding: '10px 12px', backgroundColor: 'var(--bg-input)', border: '1px solid var(--border-glass)', borderRadius: '10px', fontSize: '15px', color: '#fff' }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleBarcodeSubmit(barcodeInput); }}
+                />
+                <button
+                  type="button"
+                  onClick={() => handleBarcodeSubmit(barcodeInput)}
+                  style={{ padding: '0 16px', borderRadius: '10px', border: 'none', background: 'var(--grad-calories)', color: '#fff', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}
+                >
+                  Procurar
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -1195,31 +1429,6 @@ const searchResultSubStyle: React.CSSProperties = {
   color: 'var(--color-text-secondary)',
 };
 
-const portionCardStyle: React.CSSProperties = {
-  padding: '12px 14px',
-  backgroundColor: 'rgba(0, 0, 0, 0.2)',
-};
-
-const closePortionButtonStyle: React.CSSProperties = {
-  background: 'none',
-  border: 'none',
-  fontSize: '1.25rem',
-  color: 'var(--color-text-secondary)',
-  cursor: 'pointer',
-};
-
-const addProductButtonStyle: React.CSSProperties = {
-  padding: '10px 16px',
-  borderRadius: '10px',
-  border: 'none',
-  background: 'var(--grad-calories)',
-  color: '#fff',
-  fontWeight: 600,
-  fontSize: '0.85rem',
-  cursor: 'pointer',
-  alignSelf: 'flex-end',
-};
-
 // Input base styles
 const inputGroupStyle: React.CSSProperties = {
   display: 'flex',
@@ -1480,4 +1689,192 @@ const aiSearchWarningStyle: React.CSSProperties = {
   fontWeight: 500,
   marginBottom: '10px',
   lineHeight: 1.3,
+};
+
+const customProductModalOverlayStyle: React.CSSProperties = {
+  position: 'fixed',
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  backgroundColor: 'rgba(0, 0, 0, 0.7)',
+  backdropFilter: 'blur(10px)',
+  zIndex: 10000,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '16px',
+};
+
+const customProductModalContentStyle: React.CSSProperties = {
+  width: '100%',
+  maxWidth: '400px',
+  padding: '24px',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '16px',
+  boxShadow: '0 15px 45px rgba(0,0,0,0.6)',
+  borderRadius: '16px',
+};
+
+const customProductModalHeaderStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '4px',
+  borderBottom: '1px solid var(--border-glass)',
+  paddingBottom: '12px',
+};
+
+const customProductModalTitleStyle: React.CSSProperties = {
+  fontSize: '1.15rem',
+  fontWeight: 800,
+  color: '#fff',
+  textAlign: 'center',
+};
+
+const customProductModalBrandStyle: React.CSSProperties = {
+  fontSize: '0.8rem',
+  color: 'var(--color-text-secondary)',
+  textAlign: 'center',
+};
+
+const customProductModalBodyStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '14px',
+};
+
+const customProductModalImageContainerStyle: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'center',
+  alignItems: 'center',
+  backgroundColor: 'rgba(255,255,255,0.02)',
+  border: '1px solid var(--border-glass)',
+  borderRadius: '12px',
+  height: '150px',
+  width: '100%',
+  overflow: 'hidden',
+};
+
+const customProductModalImageStyle: React.CSSProperties = {
+  height: '100%',
+  maxWidth: '100%',
+  objectFit: 'contain',
+};
+
+const customProductModalPlaceholderImageStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  height: '100%',
+  width: '100%',
+};
+
+const customProductModalNutritionStyle: React.CSSProperties = {
+  padding: '12px 14px',
+};
+
+const customProductModalSectionTitleStyle: React.CSSProperties = {
+  fontSize: '0.8rem',
+  fontWeight: 700,
+  color: 'var(--color-text-secondary)',
+  marginBottom: '8px',
+  textTransform: 'uppercase',
+  letterSpacing: '0.05em',
+};
+
+const customProductModalMacrosGridStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(4, 1fr)',
+  gap: '8px',
+};
+
+const customProductModalMacroItemStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  padding: '6px 4px',
+  borderRadius: '8px',
+  borderLeft: '2px solid',
+  backgroundColor: 'rgba(255,255,255,0.01)',
+};
+
+const customProductModalPortionStyle: React.CSSProperties = {
+  padding: '12px 14px',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '6px',
+};
+
+const customProductModalActionsStyle: React.CSSProperties = {
+  display: 'flex',
+  gap: '12px',
+  marginTop: '4px',
+};
+
+const customProductModalCancelButtonStyle: React.CSSProperties = {
+  flex: 1,
+  padding: '12px',
+  borderRadius: '10px',
+  border: '1px solid var(--border-glass)',
+  background: 'rgba(255,255,255,0.02)',
+  color: 'var(--color-text-secondary)',
+  fontWeight: 600,
+  cursor: 'pointer',
+  WebkitTapHighlightColor: 'transparent',
+};
+
+const customProductModalConfirmButtonStyle: React.CSSProperties = {
+  flex: 1.5,
+  padding: '12px',
+  borderRadius: '10px',
+  border: 'none',
+  background: 'var(--grad-calories)',
+  color: '#fff',
+  fontWeight: 700,
+  cursor: 'pointer',
+  WebkitTapHighlightColor: 'transparent',
+  boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)',
+};
+
+// Barcode styles
+const barcodeScannerTriggerButtonStyle: React.CSSProperties = {
+  width: '46px',
+  height: '46px',
+  borderRadius: '12px',
+  border: '1px solid var(--border-glass)',
+  background: 'rgba(255,255,255,0.02)',
+  color: 'var(--color-text-secondary)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  cursor: 'pointer',
+  transition: 'all 0.2s',
+  WebkitTapHighlightColor: 'transparent',
+};
+
+const customBarcodeModalOverlayStyle: React.CSSProperties = {
+  position: 'fixed',
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  backgroundColor: 'rgba(0, 0, 0, 0.75)',
+  backdropFilter: 'blur(10px)',
+  zIndex: 10000,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '16px',
+};
+
+const customBarcodeModalContentStyle: React.CSSProperties = {
+  width: '100%',
+  maxWidth: '360px',
+  padding: '20px',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '14px',
+  boxShadow: '0 15px 45px rgba(0,0,0,0.6)',
+  borderRadius: '16px',
 };

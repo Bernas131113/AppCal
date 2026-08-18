@@ -7,9 +7,10 @@ import { Settings as SettingsIcon, Target, Save, CheckCircle, User, PieChart, Sp
 interface SettingsProps {
   onSettingsSaved: (settings: AppSettings) => void;
   onClose: () => void;
+  showToast?: (message: string, type?: 'success' | 'error' | 'info') => void;
 }
 
-export const Settings: React.FC<SettingsProps> = ({ onSettingsSaved, onClose }) => {
+export const Settings: React.FC<SettingsProps> = ({ onSettingsSaved, onClose, showToast }) => {
   const [settings, setSettings] = useState<AppSettings>(getSettings());
   const [activeTab, setActiveTab] = useState<'profile' | 'macros'>('profile');
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -151,7 +152,11 @@ export const Settings: React.FC<SettingsProps> = ({ onSettingsSaved, onClose }) 
                   settings.profile.macroPercentages.carbs + 
                   settings.profile.macroPercentages.fats;
       if (sum !== 100) {
-        alert(`A soma das percentagens de macros deve ser exatamente 100%. (Atual: ${sum}%)`);
+        if (showToast) {
+          showToast(`Soma de macros deve ser 100%. (Atual: ${sum}%)`, 'error');
+        } else {
+          alert(`A soma das percentagens de macros deve ser exatamente 100%. (Atual: ${sum}%)`);
+        }
         return;
       }
     }

@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { FoodItem, MealType, Meal } from '../types';
-import { Trash2, Plus, Check, X, AlertCircle, Minus } from 'lucide-react';
+import { Trash2, Plus, Check, X, AlertCircle, Minus, Search, Barcode, ShoppingBag, Loader2 } from 'lucide-react';
 import { generateId, formatNumber } from '../utils/helpers';
+import { Html5Qrcode } from 'html5-qrcode';
 
 interface EditableFoodItem extends FoodItem {
   base: {
@@ -20,7 +21,14 @@ interface MealReviewProps {
   notes: string;
   onSave: (meal: Meal) => void;
   onCancel: () => void;
+  apiKey?: string;
 }
+
+const getNutriment = (nutriments: any, key: string): number => {
+  if (!nutriments) return 0;
+  const val = nutriments[`${key}_100g`] ?? nutriments[key] ?? 0;
+  return Number(val) || 0;
+};
 
 export const MealReview: React.FC<MealReviewProps> = ({
   initialMealType,
@@ -29,9 +37,28 @@ export const MealReview: React.FC<MealReviewProps> = ({
   notes,
   onSave,
   onCancel,
+  apiKey,
 }) => {
   const [mealType, setMealType] = useState<MealType>(initialMealType);
   const [items, setItems] = useState<EditableFoodItem[]>([]);
+
+  // Search & Barcode states
+  const [showSearchModal, setShowSearchModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchSource, setSearchSource] = useState<'off' | 'ai'>('off');
+  const [error, setError] = useState<string | null>(null);
+
+  // Detail Modal States
+  const [selectedSearchProduct, setSelectedSearchProduct] = useState<any | null>(null);
+  const [searchWeightGrams, setSearchWeightGrams] = useState(100);
+
+  // Barcode Scanner Modal States
+  const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
+  const [barcodeInput, setBarcodeInput] = useState('');
+  const [isScanning, setIsScanning] = useState(false);
+  const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
 
   // Initialize and double-buffer base values to allow proportional calculations
   useEffect(() => {
@@ -123,6 +150,224 @@ export const MealReview: React.FC<MealReviewProps> = ({
       updated[index] = updatedItem;
       return updated;
     });
+  };
+
+  // Barcode Scanner Camera Lifecycle
+  useEffect(() => {
+    if (showBarcodeScanner) {
+      const timer = setTimeout(() => {
+        const scannerId = "barcode-reader-review";
+        const element = document.getElementById(scannerId);
+        if (!element) return;
+        
+        try {
+          const scanner = new Html5Qrcode(scannerId);
+          html5QrCodeRef.current = scanner;
+          
+          scanner.start(
+            { facingMode: "environment" },
+            {
+              fps: 10,
+              qrbox: (width, height) => {
+                return { width: Math.min(width * 0.8, 280), height: Math.min(height * 0.5, 130) };
+              }
+            },
+            (decodedText) => {
+              handleBarcodeSubmit(decodedText);
+            },
+            () => {}
+          ).then(() => {
+            setIsScanning(true);
+          }).catch(err => {
+            console.error("Erro ao iniciar câmara barcode:", err);
+          });
+        } catch (e) {
+          console.error("Erro ao instanciar Html5Qrcode:", e);
+        }
+      }, 400);
+
+      return () => {
+        clearTimeout(timer);
+        stopScanning();
+      };
+    }
+  }, [showBarcodeScanner]);
+
+  const stopScanning = async () => {
+    if (html5QrCodeRef.current) {
+      if (html5QrCodeRef.current.isScanning) {
+        try {
+          await html5QrCodeRef.current.stop();
+        } catch (e) {
+          console.error("Erro ao parar scanner:", e);
+        }
+      }
+      html5QrCodeRef.current = null;
+      setIsScanning(false);
+    }
+  };
+
+  const handleBarcodeSubmit = async (code: string) => {
+    if (!code.trim()) return;
+    setIsSearching(true);
+    setError(null);
+    await stopScanning();
+    setShowBarcodeScanner(false);
+    setBarcodeInput('');
+    
+    try {
+      const response = await fetch(`https://world.openfoodfacts.org/api/v2/product/${code.trim()}.json`, {
+        headers: { 'User-Agent': 'AppCalNutritionApp - Web - Version 1.0 - contact@appcal.com' }
+      });
+      if (!response.ok) throw new Error('Código de barras não encontrado.');
+      const data = await response.json();
+      
+      if (data.status === 1 && data.product) {
+        setSelectedSearchProduct(data.product);
+        setSearchWeightGrams(100); // Default to 100g
+      } else {
+        setError('Produto não encontrado com esse código de barras.');
+      }
+    } catch (err) {
+      console.error(err);
+      setError('Código de barras não encontrado ou erro de rede.');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // Open Food Facts API Search (with AI Fallback)
+  const searchFoodDatabase = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+    setIsSearching(true);
+    setError(null);
+    setSelectedSearchProduct(null);
+    setSearchSource('off');
+    try {
+      const response = await fetch(
+        `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(
+          searchQuery
+        )}&search_simple=1&action=process&json=1&page_size=10`
+      );
+      if (!response.ok) throw new Error('Falha ao aceder à base de dados.');
+      const data = await response.json();
+      setSearchResults(data.products || []);
+      if ((data.products || []).length === 0) {
+        setError('Nenhum alimento encontrado com esse nome.');
+      }
+    } catch (err) {
+      console.log('Erro na base de dados externa. A tentar alternativa por IA...', err);
+      setSearchSource('ai');
+      try {
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`;
+        const geminiRequestBody = {
+          contents: [
+            {
+              parts: [
+                {
+                  text: `Estás a atuar como uma base de dados de nutrição. O utilizador pesquisou por "${searchQuery}".
+                  Devolve um array JSON com até 8 alimentos relevantes e realistas que correspondam à pesquisa em português de Portugal.
+                  Para cada alimento, estima os valores nutricionais por 100g.
+                  O teu output deve ser estritamente um JSON que siga exatamente este formato (não dês markdown, explicações ou blocos de código):
+                  {
+                    "products": [
+                      {
+                        "product_name": "Nome do alimento (ex: Peito de Frango Cru)",
+                        "brands": "Genérico",
+                        "nutriments": {
+                          "energy-kcal_100g": 120,
+                          "proteins_100g": 22.5,
+                          "carbohydrates_100g": 0,
+                          "fat_100g": 2.5
+                        }
+                      }
+                    ]
+                  }`,
+                },
+              ],
+            },
+          ],
+          generationConfig: {
+            responseMimeType: 'application/json',
+            temperature: 0.1,
+          },
+        };
+
+        const geminiResponse = await fetch(geminiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(geminiRequestBody),
+        });
+
+        if (!geminiResponse.ok) {
+          throw new Error('Falha no fallback de IA.');
+        }
+
+        const geminiData = await geminiResponse.json();
+        const textResponse = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!textResponse) {
+          throw new Error('Nenhum texto retornado pelo Gemini.');
+        }
+
+        const parsed = JSON.parse(textResponse.trim());
+        setSearchResults(parsed.products || []);
+        if ((parsed.products || []).length === 0) {
+          setError('Nenhum alimento encontrado.');
+        }
+      } catch (geminiErr) {
+        console.error('Falha dupla (OFF e Gemini):', geminiErr);
+        setError('Ocorreu um erro ao pesquisar alimentos. Base de dados e IA indisponíveis.');
+      }
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleSelectProduct = (prod: any) => {
+    setSelectedSearchProduct(prod);
+    setSearchWeightGrams(100); // Reset to default
+  };
+
+  const addSearchedProductToSession = () => {
+    if (!selectedSearchProduct) return;
+    
+    const prod = selectedSearchProduct;
+    const name = prod.product_name_pt || prod.product_name || 'Alimento Pesquisado';
+    const brand = prod.brands ? ` (${prod.brands})` : '';
+    const fullName = name + brand;
+
+    const kcal100 = getNutriment(prod.nutriments, 'energy-kcal');
+    const prot100 = getNutriment(prod.nutriments, 'proteins');
+    const carb100 = getNutriment(prod.nutriments, 'carbohydrates');
+    const fat100 = getNutriment(prod.nutriments, 'fat');
+
+    const ratio = searchWeightGrams / 100;
+
+    const newItem: EditableFoodItem = {
+      name: fullName,
+      weight_g: searchWeightGrams,
+      calories: Math.round(kcal100 * ratio),
+      protein: Number((prot100 * ratio).toFixed(1)),
+      carbs: Number((carb100 * ratio).toFixed(1)),
+      fats: Number((fat100 * ratio).toFixed(1)),
+      confidence: 'high',
+      base: {
+        weight_g: searchWeightGrams,
+        calories: Math.round(kcal100 * ratio),
+        protein: Number((prot100 * ratio).toFixed(1)),
+        carbs: Number((carb100 * ratio).toFixed(1)),
+        fats: Number((fat100 * ratio).toFixed(1)),
+      }
+    };
+
+    setItems((prev) => [...prev, newItem]);
+    setSelectedSearchProduct(null);
+    setSearchResults([]);
+    setSearchQuery('');
+    setShowSearchModal(false);
   };
 
   // Add empty item
@@ -373,9 +618,14 @@ export const MealReview: React.FC<MealReviewProps> = ({
 
           {/* Add item and total sum layout */}
           <div style={actionsRowStyle}>
-            <button onClick={handleAddItem} style={addItemButtonStyle}>
-              <Plus size={16} /> Adicionar Ingrediente
-            </button>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button onClick={() => setShowSearchModal(true)} style={searchOverlayTriggerButtonStyle}>
+                <Search size={16} /> Pesquisar Alimento
+              </button>
+              <button onClick={handleAddItem} style={addItemButtonStyle}>
+                <Plus size={16} /> Manual
+              </button>
+            </div>
 
             {/* Totals Summary */}
             <div className="glass-card" style={totalsCardStyle}>
@@ -413,6 +663,237 @@ export const MealReview: React.FC<MealReviewProps> = ({
           <Check size={18} /> Gravar Refeição
         </button>
       </div>
+
+      {/* Search Modal Overlay */}
+      {showSearchModal && (
+        <div style={customSearchModalOverlayStyle}>
+          <div className="glass-panel" style={customSearchModalContentStyle}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-glass)', paddingBottom: '12px', marginBottom: '8px' }}>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#fff' }}>Pesquisar Alimento</h3>
+              <button onClick={() => { setShowSearchModal(false); setSearchResults([]); setSearchQuery(''); }} style={{ background: 'none', border: 'none', color: 'var(--color-text-secondary)', fontSize: '1.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={searchFoodDatabase} style={searchFormStyle}>
+              <input
+                type="text"
+                placeholder="Nome do alimento (ex: Frango, Arroz)..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={searchInputStyle}
+                autoFocus
+              />
+              <button
+                type="button"
+                onClick={() => setShowBarcodeScanner(true)}
+                style={barcodeScannerTriggerButtonStyle}
+                title="Ler código de barras"
+              >
+                <Barcode size={18} />
+              </button>
+              <button type="submit" disabled={isSearching} style={searchSubmitButtonStyle}>
+                {isSearching ? <Loader2 size={16} style={{ animation: 'spin 1.5s linear infinite' }} /> : <Search size={18} />}
+              </button>
+            </form>
+
+            {/* Results list */}
+            {searchSource === 'ai' && searchResults.length > 0 && (
+              <div style={aiSearchWarningStyle}>
+                <span>💡 Base de dados em manutenção. Resultados estimados em tempo real por Inteligência Artificial.</span>
+              </div>
+            )}
+
+            {error && (
+              <p style={{ fontSize: '0.8rem', color: '#ef4444', textAlign: 'center', padding: '10px 0' }}>{error}</p>
+            )}
+
+            <div style={searchResultsListStyle} className="hide-scrollbar">
+              {searchResults.map((prod) => (
+                <div
+                  key={prod._id || generateId()}
+                  onClick={() => handleSelectProduct(prod)}
+                  className="glass-card"
+                  style={searchResultItemStyle}
+                >
+                  {prod.image_front_thumb_url ? (
+                    <img src={prod.image_front_thumb_url} alt="" style={searchThumbStyle} />
+                  ) : (
+                    <div style={searchThumbPlaceholderStyle}><ShoppingBag size={16} /></div>
+                  )}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <h4 style={searchResultNameStyle}>
+                      {prod.product_name_pt || prod.product_name}
+                    </h4>
+                    <span style={searchResultSubStyle}>
+                      {prod.brands || 'Sem Marca'} | {Math.round(Number(prod.nutriments?.['energy-kcal_100g'] || 0))} kcal/100g
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Product Detail Preview Modal */}
+      {selectedSearchProduct && (
+        <div style={customProductModalOverlayStyle}>
+          <div className="glass-panel" style={customProductModalContentStyle}>
+            <div style={customProductModalHeaderStyle}>
+              <h3 style={customProductModalTitleStyle}>
+                {selectedSearchProduct.product_name_pt || selectedSearchProduct.product_name || 'Alimento'}
+              </h3>
+              <span style={customProductModalBrandStyle}>
+                Marca: {selectedSearchProduct.brands || 'Genérico'}
+              </span>
+            </div>
+
+            <div style={customProductModalBodyStyle}>
+              {/* Image Preview (Large!) */}
+              <div style={customProductModalImageContainerStyle}>
+                {selectedSearchProduct.image_front_url || selectedSearchProduct.image_url ? (
+                  <img
+                    src={selectedSearchProduct.image_front_url || selectedSearchProduct.image_url}
+                    alt=""
+                    style={customProductModalImageStyle}
+                  />
+                ) : (
+                  <div style={customProductModalPlaceholderImageStyle}>
+                    <ShoppingBag size={48} style={{ color: 'var(--color-text-muted)' }} />
+                  </div>
+                )}
+              </div>
+
+              {/* Nutrition Facts breakdown per portion size */}
+              <div className="glass-card" style={customProductModalNutritionStyle}>
+                <h4 style={customProductModalSectionTitleStyle}>
+                  Valores Estimados ({searchWeightGrams}g)
+                </h4>
+                
+                {/* Visual macros grid */}
+                <div style={customProductModalMacrosGridStyle}>
+                  <div style={{ ...customProductModalMacroItemStyle, borderColor: 'var(--macro-calories)' }}>
+                    <span style={{ fontSize: '1.1rem', fontWeight: 800 }}>
+                      {Math.round(getNutriment(selectedSearchProduct.nutriments, 'energy-kcal') * searchWeightGrams / 100)}
+                    </span>
+                    <span style={{ fontSize: '0.6rem', color: 'var(--macro-calories)', fontWeight: 700 }}>KCAL</span>
+                  </div>
+                  <div style={{ ...customProductModalMacroItemStyle, borderColor: 'var(--macro-protein)' }}>
+                    <span style={{ fontSize: '1.1rem', fontWeight: 800 }}>
+                      {((getNutriment(selectedSearchProduct.nutriments, 'proteins') * searchWeightGrams) / 100).toFixed(1)}g
+                    </span>
+                    <span style={{ fontSize: '0.6rem', color: 'var(--macro-protein)', fontWeight: 700 }}>PROT</span>
+                  </div>
+                  <div style={{ ...customProductModalMacroItemStyle, borderColor: 'var(--macro-carbs)' }}>
+                    <span style={{ fontSize: '1.1rem', fontWeight: 800 }}>
+                      {((getNutriment(selectedSearchProduct.nutriments, 'carbohydrates') * searchWeightGrams) / 100).toFixed(1)}g
+                    </span>
+                    <span style={{ fontSize: '0.6rem', color: 'var(--macro-carbs)', fontWeight: 700 }}>HC</span>
+                  </div>
+                  <div style={{ ...customProductModalMacroItemStyle, borderColor: 'var(--macro-fats)' }}>
+                    <span style={{ fontSize: '1.1rem', fontWeight: 800 }}>
+                      {((getNutriment(selectedSearchProduct.nutriments, 'fat') * searchWeightGrams) / 100).toFixed(1)}g
+                    </span>
+                    <span style={{ fontSize: '0.6rem', color: 'var(--macro-fats)', fontWeight: 700 }}>LIP</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Portion Control Slider and Input */}
+              <div className="glass-card" style={customProductModalPortionStyle}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <span style={portionLabelStyle}>Quantidade</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: 'var(--bg-input)', border: '1px solid var(--border-glass)', borderRadius: '8px', padding: '4px 8px', width: '90px' }}>
+                    <input
+                      type="number"
+                      value={searchWeightGrams || ''}
+                      onChange={(e) => setSearchWeightGrams(parseInt(e.target.value) || 0)}
+                      style={{ width: '100%', background: 'none', border: 'none', outline: 'none', textAlign: 'right', fontSize: '0.9rem', fontWeight: 700, color: '#fff' }}
+                    />
+                    <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', fontWeight: 600 }}>g</span>
+                  </div>
+                </div>
+                
+                <input
+                  type="range"
+                  min="10"
+                  max="1000"
+                  step="5"
+                  value={searchWeightGrams}
+                  onChange={(e) => setSearchWeightGrams(parseInt(e.target.value) || 10)}
+                  style={{ width: '100%', accentColor: 'var(--macro-calories)', cursor: 'pointer' }}
+                />
+              </div>
+            </div>
+
+            <div style={customProductModalActionsStyle}>
+              <button onClick={() => setSelectedSearchProduct(null)} style={customProductModalCancelButtonStyle}>
+                Cancelar
+              </button>
+              <button onClick={addSearchedProductToSession} style={customProductModalConfirmButtonStyle}>
+                Adicionar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Barcode Scanner Modal */}
+      {showBarcodeScanner && (
+        <div style={customBarcodeModalOverlayStyle}>
+          <div className="glass-panel" style={customBarcodeModalContentStyle}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-glass)', paddingBottom: '12px', marginBottom: '8px' }}>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#fff' }}>Digitalizar Código</h3>
+              <button onClick={() => setShowBarcodeScanner(false)} style={{ background: 'none', border: 'none', color: 'var(--color-text-secondary)', fontSize: '1.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Camera feed area */}
+            <div style={{ position: 'relative', width: '100%', height: '220px', borderRadius: '12px', overflow: 'hidden', backgroundColor: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border-glass)' }}>
+              <div id="barcode-reader-review" style={{ width: '100%', height: '100%' }}></div>
+              {!isScanning && (
+                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', color: 'var(--color-text-secondary)', fontSize: '0.8rem' }}>
+                  <Loader2 size={24} style={{ animation: 'spin 1.5s linear infinite' }} />
+                  <span>A aceder à câmara...</span>
+                </div>
+              )}
+              {isScanning && (
+                <div style={{ position: 'absolute', top: '50%', left: '10%', right: '10%', height: '2px', backgroundColor: '#ef4444', opacity: 0.8, boxShadow: '0 0 8px #ef4444', animation: 'scan 1.5s linear infinite' }}></div>
+              )}
+            </div>
+            
+            <p style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', fontStyle: 'italic', textAlign: 'center' }}>
+              Aponte a câmara para o código de barras
+            </p>
+
+            <div style={{ width: '100%', height: '1px', backgroundColor: 'var(--border-glass)', margin: '4px 0' }} />
+
+            {/* Manual Barcode Input */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', textAlign: 'left' }}>
+              <label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', fontWeight: 600 }}>Ou insira manualmente:</label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input
+                  type="text"
+                  placeholder="Código de barras..."
+                  value={barcodeInput}
+                  onChange={(e) => setBarcodeInput(e.target.value)}
+                  style={{ flex: 1, padding: '10px 12px', backgroundColor: 'var(--bg-input)', border: '1px solid var(--border-glass)', borderRadius: '10px', fontSize: '15px', color: '#fff' }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleBarcodeSubmit(barcodeInput); }}
+                />
+                <button
+                  type="button"
+                  onClick={() => handleBarcodeSubmit(barcodeInput)}
+                  style={{ padding: '0 16px', borderRadius: '10px', border: 'none', background: 'var(--grad-calories)', color: '#fff', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}
+                >
+                  Procurar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -762,4 +1243,335 @@ const saveButtonStyle: React.CSSProperties = {
   fontSize: '0.9rem',
   cursor: 'pointer',
   boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)',
+};
+
+const searchOverlayTriggerButtonStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '6px',
+  padding: '10px 16px',
+  borderRadius: '12px',
+  border: 'none',
+  background: 'var(--grad-calories)',
+  color: '#fff',
+  fontSize: '0.9rem',
+  fontWeight: 700,
+  cursor: 'pointer',
+  transition: 'all 0.2s',
+  boxShadow: '0 4px 10px rgba(16, 185, 129, 0.2)',
+};
+
+// Search modal popup styles
+const customSearchModalOverlayStyle: React.CSSProperties = {
+  position: 'fixed',
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  backgroundColor: 'rgba(0, 0, 0, 0.7)',
+  backdropFilter: 'blur(10px)',
+  zIndex: 9999,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '16px',
+};
+
+const customSearchModalContentStyle: React.CSSProperties = {
+  width: '100%',
+  maxWidth: '400px',
+  height: '80vh',
+  padding: '20px',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '14px',
+  boxShadow: '0 15px 45px rgba(0,0,0,0.6)',
+  borderRadius: '16px',
+};
+
+const searchFormStyle: React.CSSProperties = {
+  display: 'flex',
+  gap: '8px',
+  width: '100%',
+};
+
+const searchInputStyle: React.CSSProperties = {
+  flex: 1,
+  padding: '12px 14px',
+  backgroundColor: 'var(--bg-input)',
+  border: '1px solid var(--border-glass)',
+  borderRadius: '12px',
+  outline: 'none',
+  fontSize: '16px',
+  color: '#fff',
+};
+
+const barcodeScannerTriggerButtonStyle: React.CSSProperties = {
+  width: '46px',
+  height: '46px',
+  borderRadius: '12px',
+  border: '1px solid var(--border-glass)',
+  background: 'rgba(255,255,255,0.02)',
+  color: 'var(--color-text-secondary)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  cursor: 'pointer',
+  transition: 'all 0.2s',
+  WebkitTapHighlightColor: 'transparent',
+};
+
+const searchSubmitButtonStyle: React.CSSProperties = {
+  width: '46px',
+  height: '46px',
+  borderRadius: '12px',
+  border: 'none',
+  background: 'var(--grad-calories)',
+  color: '#fff',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  cursor: 'pointer',
+  transition: 'all 0.2s',
+  WebkitTapHighlightColor: 'transparent',
+  boxShadow: '0 4px 10px rgba(16, 185, 129, 0.2)',
+};
+
+const aiSearchWarningStyle: React.CSSProperties = {
+  padding: '8px 12px',
+  backgroundColor: 'rgba(245, 158, 11, 0.1)',
+  border: '1px solid rgba(245, 158, 11, 0.2)',
+  color: '#fbbf24',
+  borderRadius: '10px',
+  fontSize: '0.75rem',
+  fontWeight: 500,
+  marginBottom: '4px',
+  lineHeight: 1.3,
+};
+
+const searchResultsListStyle: React.CSSProperties = {
+  flex: 1,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '10px',
+  overflowY: 'auto',
+};
+
+const searchResultItemStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '12px',
+  padding: '10px 12px',
+  cursor: 'pointer',
+  transition: 'transform 0.2s, background-color 0.2s',
+  WebkitTapHighlightColor: 'transparent',
+};
+
+const searchThumbStyle: React.CSSProperties = {
+  width: '42px',
+  height: '42px',
+  borderRadius: '8px',
+  objectFit: 'cover',
+  backgroundColor: '#fff',
+};
+
+const searchThumbPlaceholderStyle: React.CSSProperties = {
+  width: '42px',
+  height: '42px',
+  borderRadius: '8px',
+  backgroundColor: 'rgba(255,255,255,0.03)',
+  border: '1px solid var(--border-glass)',
+  color: 'var(--color-text-muted)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+};
+
+const searchResultNameStyle: React.CSSProperties = {
+  fontSize: '0.85rem',
+  fontWeight: 700,
+  color: '#fff',
+  margin: 0,
+  textOverflow: 'ellipsis',
+  overflow: 'hidden',
+  whiteSpace: 'nowrap',
+};
+
+const searchResultSubStyle: React.CSSProperties = {
+  fontSize: '0.72rem',
+  color: 'var(--color-text-secondary)',
+};
+
+// Product detail preview overlay styles
+const customProductModalOverlayStyle: React.CSSProperties = {
+  position: 'fixed',
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  backgroundColor: 'rgba(0, 0, 0, 0.7)',
+  backdropFilter: 'blur(10px)',
+  zIndex: 10000,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '16px',
+};
+
+const customProductModalContentStyle: React.CSSProperties = {
+  width: '100%',
+  maxWidth: '400px',
+  padding: '24px',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '16px',
+  boxShadow: '0 15px 45px rgba(0,0,0,0.6)',
+  borderRadius: '16px',
+};
+
+const customProductModalHeaderStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '4px',
+  borderBottom: '1px solid var(--border-glass)',
+  paddingBottom: '12px',
+};
+
+const customProductModalTitleStyle: React.CSSProperties = {
+  fontSize: '1.15rem',
+  fontWeight: 800,
+  color: '#fff',
+  textAlign: 'center',
+};
+
+const customProductModalBrandStyle: React.CSSProperties = {
+  fontSize: '0.8rem',
+  color: 'var(--color-text-secondary)',
+  textAlign: 'center',
+};
+
+const customProductModalBodyStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '14px',
+};
+
+const customProductModalImageContainerStyle: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'center',
+  alignItems: 'center',
+  backgroundColor: 'rgba(255,255,255,0.02)',
+  border: '1px solid var(--border-glass)',
+  borderRadius: '12px',
+  height: '150px',
+  width: '100%',
+  overflow: 'hidden',
+};
+
+const customProductModalImageStyle: React.CSSProperties = {
+  height: '100%',
+  maxWidth: '100%',
+  objectFit: 'contain',
+};
+
+const customProductModalPlaceholderImageStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  height: '100%',
+  width: '100%',
+};
+
+const customProductModalNutritionStyle: React.CSSProperties = {
+  padding: '12px 14px',
+};
+
+const customProductModalSectionTitleStyle: React.CSSProperties = {
+  fontSize: '0.8rem',
+  fontWeight: 700,
+  color: 'var(--color-text-secondary)',
+  marginBottom: '8px',
+  textTransform: 'uppercase',
+  letterSpacing: '0.05em',
+};
+
+const customProductModalMacrosGridStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(4, 1fr)',
+  gap: '8px',
+};
+
+const customProductModalMacroItemStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  padding: '6px 4px',
+  borderRadius: '8px',
+  borderLeft: '2px solid',
+  backgroundColor: 'rgba(255,255,255,0.01)',
+};
+
+const customProductModalPortionStyle: React.CSSProperties = {
+  padding: '12px 14px',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '6px',
+};
+
+const customProductModalActionsStyle: React.CSSProperties = {
+  display: 'flex',
+  gap: '12px',
+  marginTop: '4px',
+};
+
+const customProductModalCancelButtonStyle: React.CSSProperties = {
+  flex: 1,
+  padding: '12px',
+  borderRadius: '10px',
+  border: '1px solid var(--border-glass)',
+  background: 'rgba(255,255,255,0.02)',
+  color: 'var(--color-text-secondary)',
+  fontWeight: 600,
+  cursor: 'pointer',
+  WebkitTapHighlightColor: 'transparent',
+};
+
+const customProductModalConfirmButtonStyle: React.CSSProperties = {
+  flex: 1.5,
+  padding: '12px',
+  borderRadius: '10px',
+  border: 'none',
+  background: 'var(--grad-calories)',
+  color: '#fff',
+  fontWeight: 700,
+  cursor: 'pointer',
+  WebkitTapHighlightColor: 'transparent',
+  boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)',
+};
+
+// Barcode styles
+const customBarcodeModalOverlayStyle: React.CSSProperties = {
+  position: 'fixed',
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  backgroundColor: 'rgba(0, 0, 0, 0.75)',
+  backdropFilter: 'blur(10px)',
+  zIndex: 10000,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '16px',
+};
+
+const customBarcodeModalContentStyle: React.CSSProperties = {
+  width: '100%',
+  maxWidth: '360px',
+  padding: '20px',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '14px',
+  boxShadow: '0 15px 45px rgba(0,0,0,0.6)',
+  borderRadius: '16px',
 };

@@ -252,6 +252,7 @@ function App() {
               notes={editingMeal.notes || ''}
               onSave={handleSaveEditedMeal}
               onCancel={() => setEditingMeal(null)}
+              apiKey={settings.geminiApiKey}
             />
           </div>
         ) : pendingAnalysis ? (
@@ -264,6 +265,7 @@ function App() {
               notes={pendingAnalysis.notes}
               onSave={handleSaveMeal}
               onCancel={() => setPendingAnalysis(null)}
+              apiKey={settings.geminiApiKey}
             />
           </div>
         ) : activeTab === 'diary' ? (
@@ -286,6 +288,7 @@ function App() {
                 goals={settings.goals}
                 onDeleteMeal={handleDeleteMeal}
                 onEditMeal={handleEditMeal}
+                showToast={showToast}
               />
             </section>
           </>
@@ -295,6 +298,8 @@ function App() {
             <ProgressTracker
               goals={settings.goals}
               meals={meals}
+              confirmAction={confirmAction}
+              showToast={showToast}
             />
           </div>
         )}
@@ -326,6 +331,7 @@ function App() {
         <Settings
           onSettingsSaved={handleSettingsSaved}
           onClose={() => setShowSettings(false)}
+          showToast={showToast}
         />
       )}
     </div>

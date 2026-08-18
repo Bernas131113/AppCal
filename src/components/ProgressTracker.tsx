@@ -7,9 +7,11 @@ import { formatDateLabel, isSameDay } from '../utils/helpers';
 interface ProgressTrackerProps {
   goals: UserGoals;
   meals: Meal[];
+  confirmAction?: (title: string, message: string, onConfirm: () => void) => void;
+  showToast?: (message: string, type?: 'success' | 'error' | 'info') => void;
 }
 
-export const ProgressTracker: React.FC<ProgressTrackerProps> = ({ goals, meals }) => {
+export const ProgressTracker: React.FC<ProgressTrackerProps> = ({ goals, meals, confirmAction, showToast }) => {
   const [weightLogs, setWeightLogs] = useState<WeightLog[]>([]);
   const [weightInput, setWeightInput] = useState('');
   const [dateInput, setDateInput] = useState(new Date().toISOString().split('T')[0]);
@@ -37,14 +39,22 @@ export const ProgressTracker: React.FC<ProgressTrackerProps> = ({ goals, meals }
     setWeightLogs(updated);
     setWeightInput('');
     setIsLoading(false);
+    if (showToast) showToast('Peso registado com sucesso!', 'success');
   };
 
   const handleDeleteLog = async (id: string) => {
-    if (confirm('Deseja apagar este registo de peso?')) {
+    const deleteOp = async () => {
       setIsLoading(true);
       const updated = await deleteWeightLogDb(id);
       setWeightLogs(updated);
       setIsLoading(false);
+      if (showToast) showToast('Registo de peso eliminado.', 'success');
+    };
+
+    if (confirmAction) {
+      confirmAction('Eliminar Peso', 'Deseja apagar este registo de peso?', deleteOp);
+    } else if (confirm('Deseja apagar este registo de peso?')) {
+      deleteOp();
     }
   };
 

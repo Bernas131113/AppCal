@@ -52,7 +52,6 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
         if (signUpError) {
           setError(signUpError);
         } else if (user) {
-          alert('Conta criada com sucesso! Sessão iniciada.');
           onAuthSuccess(user);
         }
       }

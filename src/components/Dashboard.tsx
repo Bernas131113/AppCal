@@ -9,10 +9,13 @@ interface DashboardProps {
   goals: UserGoals;
   onDeleteMeal: (id: string) => void;
   onEditMeal: (meal: Meal) => void;
+  showToast?: (message: string, type?: 'success' | 'error' | 'info') => void;
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ meals, goals, onDeleteMeal, onEditMeal }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ meals, goals, onDeleteMeal, onEditMeal, showToast }) => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [favMealToSave, setFavMealToSave] = useState<Meal | null>(null);
+  const [favNameInput, setFavNameInput] = useState('');
 
   // Filter meals for the selected day
   const filteredMeals = meals.filter((meal) =>
@@ -73,24 +76,55 @@ export const Dashboard: React.FC<DashboardProps> = ({ meals, goals, onDeleteMeal
 
   // Add meal to favorites
   const handleSaveAsFavorite = (meal: Meal) => {
-    const defaultName = `Meu ${getMealTypeLabel(meal.meal_type)} habitual`;
-    const name = prompt('Como quer chamar este favorito?', defaultName);
-    if (name && name.trim()) {
-      addFavorite({
-        id: Math.random().toString(36).substring(2, 11) + '-' + Date.now().toString(36),
-        name: name.trim(),
-        items: meal.items,
-        total_calories: meal.total_calories,
-        total_protein: meal.total_protein,
-        total_carbs: meal.total_carbs,
-        total_fats: meal.total_fats,
-      });
-      alert('Refeição guardada nos Favoritos com sucesso!');
+    setFavMealToSave(meal);
+    setFavNameInput(`Meu ${getMealTypeLabel(meal.meal_type)} habitual`);
+  };
+
+  const confirmSaveFavorite = () => {
+    if (!favMealToSave || !favNameInput.trim()) return;
+    addFavorite({
+      id: Math.random().toString(36).substring(2, 11) + '-' + Date.now().toString(36),
+      name: favNameInput.trim(),
+      items: favMealToSave.items,
+      total_calories: favMealToSave.total_calories,
+      total_protein: favMealToSave.total_protein,
+      total_carbs: favMealToSave.total_carbs,
+      total_fats: favMealToSave.total_fats,
+    });
+    setFavMealToSave(null);
+    if (showToast) {
+      showToast('Refeição guardada nos Favoritos!', 'success');
     }
   };
 
   return (
-    <div style={dashboardContainerStyle}>
+    <div style={{ ...dashboardContainerStyle, position: 'relative' }}>
+      {favMealToSave && (
+        <div style={customFavModalOverlayStyle}>
+          <div className="glass-panel" style={customFavModalContentStyle}>
+            <h3 style={customFavModalTitleStyle}>Guardar como Favorito</h3>
+            <p style={customFavModalMessageStyle}>
+              Insira um nome para identificar este modelo rápido de refeição:
+            </p>
+            <input
+              type="text"
+              value={favNameInput}
+              onChange={(e) => setFavNameInput(e.target.value)}
+              style={favInputStyle}
+              placeholder="Ex: O meu pequeno-almoço habitual"
+              autoFocus
+            />
+            <div style={customFavModalActionsStyle}>
+              <button onClick={() => setFavMealToSave(null)} style={favCancelButtonStyle}>
+                Cancelar
+              </button>
+              <button onClick={confirmSaveFavorite} style={favConfirmButtonStyle}>
+                Guardar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* Date Switcher & Native iOS Styled DatePicker */}
       <div className="glass-card" style={dateSwitcherStyle}>
@@ -612,9 +646,8 @@ const mealPhotoGridStyle: React.CSSProperties = {
 const mealPhotoThumbStyle: React.CSSProperties = {
   width: '50px',
   height: '50px',
-  objectFit: 'cover',
   borderRadius: '8px',
-  border: '1px solid var(--border-glass)',
+  objectFit: 'cover',
 };
 
 const mealItemsContainerStyle: React.CSSProperties = {
@@ -653,4 +686,87 @@ const mealMacroSummaryLineStyle: React.CSSProperties = {
   gap: '10px',
   fontSize: '0.72rem',
   color: 'var(--color-text-secondary)',
+};
+
+// Custom favorite prompt modal styles
+const customFavModalOverlayStyle: React.CSSProperties = {
+  position: 'fixed',
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  backgroundColor: 'rgba(0, 0, 0, 0.65)',
+  backdropFilter: 'blur(10px)',
+  zIndex: 10000,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '20px',
+};
+
+const customFavModalContentStyle: React.CSSProperties = {
+  width: '100%',
+  maxWidth: '360px',
+  padding: '24px',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '16px',
+  textAlign: 'center',
+  boxShadow: '0 10px 40px rgba(0,0,0,0.6)',
+  borderRadius: '16px',
+};
+
+const customFavModalTitleStyle: React.CSSProperties = {
+  fontSize: '1.2rem',
+  fontWeight: 800,
+  color: '#fff',
+};
+
+const customFavModalMessageStyle: React.CSSProperties = {
+  fontSize: '0.85rem',
+  color: 'var(--color-text-secondary)',
+  lineHeight: 1.4,
+};
+
+const favInputStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '10px 14px',
+  backgroundColor: 'var(--bg-input)',
+  border: '1px solid var(--border-glass)',
+  borderRadius: '10px',
+  outline: 'none',
+  fontSize: '16px',
+  color: '#fff',
+  textAlign: 'center',
+};
+
+const customFavModalActionsStyle: React.CSSProperties = {
+  display: 'flex',
+  gap: '10px',
+  marginTop: '6px',
+};
+
+const favCancelButtonStyle: React.CSSProperties = {
+  flex: 1,
+  padding: '12px',
+  borderRadius: '10px',
+  border: '1px solid var(--border-glass)',
+  background: 'rgba(255,255,255,0.02)',
+  color: 'var(--color-text-secondary)',
+  fontWeight: 600,
+  cursor: 'pointer',
+  WebkitTapHighlightColor: 'transparent',
+};
+
+const favConfirmButtonStyle: React.CSSProperties = {
+  flex: 1,
+  padding: '12px',
+  borderRadius: '10px',
+  border: 'none',
+  background: 'var(--grad-calories)',
+  color: '#fff',
+  fontWeight: 700,
+  cursor: 'pointer',
+  WebkitTapHighlightColor: 'transparent',
+  boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)',
 };
