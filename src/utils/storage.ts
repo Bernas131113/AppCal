@@ -27,7 +27,7 @@ const DEFAULT_PROFILE = {
 
 const DEFAULT_SETTINGS: AppSettings = {
   geminiApiKey: import.meta.env.VITE_GEMINI_API_KEY || '',
-  model: 'gemini-3.6-flash',
+  model: 'gemini-3.5-flash',
   goals: {
     calories: 2000,
     protein: 130,
