@@ -35,6 +35,9 @@ const DEFAULT_SETTINGS: AppSettings = {
     fats: 65,
   },
   profile: DEFAULT_PROFILE,
+  useSupabase: false,
+  supabaseUrl: '',
+  supabaseAnonKey: '',
 };
 
 export const getSettings = (): AppSettings => {

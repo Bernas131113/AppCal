@@ -1,0 +1,23 @@
+{
+  "short_name": "AppCal",
+  "name": "AppCal - Nutrição Inteligente",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any"
+    },
+    {
+      "src": "favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#080c14",
+  "theme_color": "#10b981",
+  "display": "standalone",
+  "orientation": "portrait",
+  "categories": ["health", "fitness", "nutrition"]
+}

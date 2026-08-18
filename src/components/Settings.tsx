@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import type { AppSettings, UserProfile } from '../types';
 import { getSettings, saveSettings } from '../utils/storage';
-import { Settings as SettingsIcon, Key, Target, Eye, EyeOff, Save, CheckCircle, User, PieChart, Sparkles, Scale, Info } from 'lucide-react';
+import { resetSupabaseClient } from '../utils/supabase';
+import { Settings as SettingsIcon, Key, Target, Eye, EyeOff, Save, CheckCircle, User, PieChart, Sparkles, Scale, Info, Database } from 'lucide-react';
 
 interface SettingsProps {
   onSettingsSaved: (settings: AppSettings) => void;
@@ -157,6 +158,7 @@ export const Settings: React.FC<SettingsProps> = ({ onSettingsSaved, onClose }) 
     }
 
     saveSettings(settings);
+    resetSupabaseClient();
     onSettingsSaved(settings);
     setSavedSuccess(true);
     setTimeout(() => {
@@ -265,6 +267,52 @@ export const Settings: React.FC<SettingsProps> = ({ onSettingsSaved, onClose }) 
                     <option value="gemini-1.5-flash">Gemini 1.5 Flash (Rápido)</option>
                     <option value="gemini-2.5-pro">Gemini 2.5 Pro (Mais preciso e detalhado)</option>
                   </select>
+                </div>
+
+                {/* Cloud Sync Database (Supabase) section */}
+                <div style={{ borderTop: '1px solid var(--border-glass)', paddingTop: '16px', marginTop: '16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                    <div style={sectionTitleStyle}>
+                      <Database size={18} style={{ color: 'var(--macro-carbs)' }} />
+                      <h3>Base de Dados Cloud (Supabase)</h3>
+                    </div>
+                    <label style={toggleSwitchStyle}>
+                      <input
+                        type="checkbox"
+                        checked={settings.useSupabase}
+                        onChange={(e) => setSettings({ ...settings, useSupabase: e.target.checked })}
+                        style={checkboxInputStyle}
+                      />
+                      <span style={toggleSliderStyle(settings.useSupabase)}>
+                        <div style={toggleKnobStyle(settings.useSupabase)} />
+                      </span>
+                    </label>
+                  </div>
+
+                  {settings.useSupabase && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      <div style={inputGroupStyle}>
+                        <label style={labelStyle}>Supabase URL</label>
+                        <input
+                          type="text"
+                          value={settings.supabaseUrl}
+                          onChange={(e) => setSettings({ ...settings, supabaseUrl: e.target.value })}
+                          placeholder="https://xxxxxx.supabase.co"
+                          style={inputStyle}
+                        />
+                      </div>
+                      <div style={inputGroupStyle}>
+                        <label style={labelStyle}>Supabase Anon Key</label>
+                        <input
+                          type="password"
+                          value={settings.supabaseAnonKey}
+                          onChange={(e) => setSettings({ ...settings, supabaseAnonKey: e.target.value })}
+                          placeholder="Cole a sua Anon Key do Supabase..."
+                          style={inputStyle}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

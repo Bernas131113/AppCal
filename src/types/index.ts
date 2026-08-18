@@ -49,11 +49,22 @@ export interface UserProfile {
   };
 }
 
+export interface WeightLog {
+  id: string;
+  user_id: string;
+  date: string; // YYYY-MM-DD
+  weight_kg: number;
+}
+
 export interface AppSettings {
   geminiApiKey: string;
   model: string;
   goals: UserGoals;
   profile: UserProfile;
+  // Supabase Cloud Sync settings
+  useSupabase: boolean;
+  supabaseUrl: string;
+  supabaseAnonKey: string;
 }
 
 export interface FavoriteMeal {
