@@ -254,11 +254,13 @@ export const insertMeal = async (meal: Meal): Promise<void> => {
 
   if (client) {
     try {
-      // 1. Insert meal header
+      const isUuid = meal.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+      
+      // 1. Upsert meal header
       const { data: mealData, error: mealError } = await client
         .from('meals')
-        .insert({
-          id: meal.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) ? meal.id : undefined, // Check if valid UUID, else auto-generate
+        .upsert({
+          id: isUuid ? meal.id : undefined, // Check if valid UUID, else auto-generate
           user_id: user.id,
           meal_type: meal.meal_type,
           logged_at: meal.timestamp,
@@ -268,13 +270,16 @@ export const insertMeal = async (meal: Meal): Promise<void> => {
           total_carbs: meal.total_carbs,
           total_fats: meal.total_fats,
           notes: meal.notes,
-        })
+        }, { onConflict: 'id' })
         .select()
         .single();
 
       if (mealError) throw mealError;
 
-      // 2. Insert detailed food items
+      // 2. Delete old meal items for this meal to avoid duplication on edit
+      await client.from('meal_items').delete().eq('meal_id', mealData.id);
+
+      // 3. Insert detailed food items
       const itemsToInsert = meal.items.map((item) => ({
         meal_id: mealData.id,
         name: item.name,
@@ -289,14 +294,27 @@ export const insertMeal = async (meal: Meal): Promise<void> => {
       if (itemsError) throw itemsError;
       return;
     } catch (e) {
-      console.error('Falha ao inserir refeição no Supabase, guardando na cache local.', e);
+      console.error('Falha ao inserir/atualizar refeição no Supabase, guardando na cache local.', e);
     }
   }
 
   // Local fallback cache
   const allMeals = JSON.parse(localStorage.getItem('appcal_meals_v2') || '[]');
-  const localMealWithUser = { ...meal, user_id: user.id };
-  localStorage.setItem('appcal_meals_v2', JSON.stringify([localMealWithUser, ...allMeals]));
+  const exists = allMeals.some((m: any) => m.id === meal.id && m.user_id === user.id);
+  
+  let updatedMeals;
+  if (exists) {
+    // Edit existing
+    updatedMeals = allMeals.map((m: any) => 
+      (m.id === meal.id && m.user_id === user.id) ? { ...meal, user_id: user.id } : m
+    );
+  } else {
+    // Add new
+    const localMealWithUser = { ...meal, user_id: user.id };
+    updatedMeals = [localMealWithUser, ...allMeals];
+  }
+  
+  localStorage.setItem('appcal_meals_v2', JSON.stringify(updatedMeals));
 };
 
 export const deleteMealDb = async (id: string): Promise<void> => {

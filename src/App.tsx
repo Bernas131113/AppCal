@@ -8,7 +8,7 @@ import { Dashboard } from './components/Dashboard';
 import { ProgressTracker } from './components/ProgressTracker';
 import { Settings } from './components/Settings';
 import { Auth } from './components/Auth';
-import { Settings as SettingsIcon, Sparkles, LogOut, Calendar, TrendingUp, User } from 'lucide-react';
+import { Settings as SettingsIcon, Sparkles, LogOut, Calendar, TrendingUp, User, CheckCircle2, AlertCircle, Info } from 'lucide-react';
 import './App.css';
 
 function App() {
@@ -18,6 +18,47 @@ function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [activeTab, setActiveTab] = useState<'diary' | 'progress'>('diary');
   const [isInitializing, setIsInitializing] = useState(true);
+
+  // Editing meal state
+  const [editingMeal, setEditingMeal] = useState<Meal | null>(null);
+
+  // Custom alert & confirmation modal states
+  const [modalConfig, setModalConfig] = useState<{
+    title: string;
+    message: string;
+    confirmText: string;
+    cancelText: string;
+    onConfirm: () => void;
+  } | null>(null);
+
+  // Custom Toast notifications
+  const [toastConfig, setToastConfig] = useState<{
+    isOpen: boolean;
+    message: string;
+    type: 'success' | 'error' | 'info';
+  } | null>(null);
+
+  // Toast notification helper
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
+    setToastConfig({ isOpen: true, message, type });
+    setTimeout(() => {
+      setToastConfig(prev => prev ? { ...prev, isOpen: false } : null);
+    }, 3000);
+  };
+
+  // Custom confirmation helper
+  const confirmAction = (title: string, message: string, onConfirm: () => void) => {
+    setModalConfig({
+      title,
+      message,
+      confirmText: 'Confirmar',
+      cancelText: 'Cancelar',
+      onConfirm: () => {
+        onConfirm();
+        setModalConfig(null);
+      }
+    });
+  };
 
   // Pending review state
   const [pendingAnalysis, setPendingAnalysis] = useState<{
@@ -44,25 +85,28 @@ function App() {
 
   const handleAuthSuccess = (user: { id: string; email: string }) => {
     setCurrentUser(user);
+    showToast('Sessão iniciada com sucesso!', 'success');
     // Load fresh meals for this user
     setTimeout(() => {
       loadUserMeals();
     }, 100);
   };
 
-  const handleLogout = async () => {
-    if (confirm('Deseja terminar a sessão?')) {
+  const handleLogout = () => {
+    confirmAction('Terminar Sessão', 'Deseja realmente terminar a sua sessão calórica?', async () => {
       await dbSignOut();
       setCurrentUser(null);
       setMeals([]);
       setPendingAnalysis(null);
-    }
+      setEditingMeal(null);
+      showToast('Sessão terminada.', 'info');
+    });
   };
 
   const handleSettingsSaved = (newSettings: AppSettings) => {
     setSettings(newSettings);
     setShowSettings(false);
-    // Reload meals in case database sync state changed
+    showToast('Definições guardadas!', 'success');
     loadUserMeals();
   };
 
@@ -80,14 +124,37 @@ function App() {
     const updated = await fetchMeals();
     setMeals(updated);
     setPendingAnalysis(null); // Close review panel
+    showToast('Refeição registada com sucesso!', 'success');
   };
 
-  const handleDeleteMeal = async (id: string) => {
-    if (confirm('Tem a certeza que deseja apagar este registo?')) {
+  const handleEditMeal = (meal: Meal) => {
+    setEditingMeal(meal);
+  };
+
+  const handleSaveEditedMeal = async (updatedMeal: Meal) => {
+    if (!editingMeal) return;
+    
+    // Preserve the original meal identity and date
+    const mealToSave = {
+      ...updatedMeal,
+      id: editingMeal.id,
+      timestamp: editingMeal.timestamp
+    };
+    
+    await insertMeal(mealToSave);
+    const updated = await fetchMeals();
+    setMeals(updated);
+    setEditingMeal(null); // Close edit panel
+    showToast('Refeição atualizada com sucesso!', 'success');
+  };
+
+  const handleDeleteMeal = (id: string) => {
+    confirmAction('Eliminar Registo', 'Tem a certeza que deseja apagar permanentemente este registo?', async () => {
       await deleteMealDb(id);
       const updated = await fetchMeals();
       setMeals(updated);
-    }
+      showToast('Registo eliminado.', 'success');
+    });
   };
 
   if (isInitializing) {
@@ -106,6 +173,34 @@ function App() {
 
   return (
     <div style={appLayoutContainerStyle}>
+      {/* Custom Toast Indicator */}
+      {toastConfig && toastConfig.isOpen && (
+        <div style={customToastStyle(toastConfig.type)}>
+          {toastConfig.type === 'success' && <CheckCircle2 size={16} />}
+          {toastConfig.type === 'error' && <AlertCircle size={16} />}
+          {toastConfig.type === 'info' && <Info size={16} />}
+          <span>{toastConfig.message}</span>
+        </div>
+      )}
+
+      {/* Custom Confirmation Modal */}
+      {modalConfig && (
+        <div style={customModalOverlayStyle}>
+          <div className="glass-panel animate-pulse-slow" style={customModalContentStyle}>
+            <h3 style={customModalTitleStyle}>{modalConfig.title}</h3>
+            <p style={customModalMessageStyle}>{modalConfig.message}</p>
+            <div style={customModalActionsStyle}>
+              <button onClick={() => setModalConfig(null)} style={customModalCancelButtonStyle}>
+                Cancelar
+              </button>
+              <button onClick={modalConfig.onConfirm} style={customModalConfirmButtonStyle}>
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* App Header */}
       <header className="glass-panel" style={headerStyle}>
         <div style={logoContainerStyle}>
@@ -124,7 +219,6 @@ function App() {
             <User size={14} />
             <span style={userEmailStyle}>{currentUser.email}</span>
           </div>
-
 
           {/* Settings gear */}
           <button
@@ -148,7 +242,19 @@ function App() {
 
       {/* Main Content Grid */}
       <main style={mainContentGridStyle}>
-        {pendingAnalysis ? (
+        {editingMeal ? (
+          /* Edit Mode Review screen */
+          <div style={{ gridColumn: '1 / -1' }}>
+            <MealReview
+              initialMealType={editingMeal.meal_type}
+              initialItems={editingMeal.items}
+              photos={editingMeal.photos}
+              notes={editingMeal.notes || ''}
+              onSave={handleSaveEditedMeal}
+              onCancel={() => setEditingMeal(null)}
+            />
+          </div>
+        ) : pendingAnalysis ? (
           /* Analysis Review screen (full width overlay look) */
           <div style={{ gridColumn: '1 / -1' }}>
             <MealReview
@@ -179,6 +285,7 @@ function App() {
                 meals={meals}
                 goals={settings.goals}
                 onDeleteMeal={handleDeleteMeal}
+                onEditMeal={handleEditMeal}
               />
             </section>
           </>
@@ -194,7 +301,7 @@ function App() {
       </main>
 
       {/* iOS styled Bottom Navigation Bar (Floating glassmorphic look) */}
-      {!pendingAnalysis && (
+      {!pendingAnalysis && !editingMeal && (
         <nav className="glass-panel" style={bottomNavStyle}>
           <button
             onClick={() => setActiveTab('diary')}
@@ -312,8 +419,6 @@ const userEmailStyle: React.CSSProperties = {
   whiteSpace: 'nowrap',
 };
 
-
-
 const headerIconButtonStyle: React.CSSProperties = {
   width: '32px',
   height: '32px',
@@ -372,6 +477,115 @@ const bottomTabButtonStyle: React.CSSProperties = {
 const activeBottomTabStyle: React.CSSProperties = {
   color: '#fff',
   background: 'rgba(255,255,255,0.04)',
+};
+
+// Custom popup styles
+const customModalOverlayStyle: React.CSSProperties = {
+  position: 'fixed',
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  backgroundColor: 'rgba(0, 0, 0, 0.65)',
+  backdropFilter: 'blur(10px)',
+  zIndex: 10000,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '20px',
+};
+
+const customModalContentStyle: React.CSSProperties = {
+  width: '100%',
+  maxWidth: '380px',
+  padding: '24px',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '16px',
+  textAlign: 'center',
+  boxShadow: '0 10px 40px rgba(0,0,0,0.6)',
+  borderRadius: '16px',
+};
+
+const customModalTitleStyle: React.CSSProperties = {
+  fontSize: '1.2rem',
+  fontWeight: 800,
+  color: '#fff',
+};
+
+const customModalMessageStyle: React.CSSProperties = {
+  fontSize: '0.9rem',
+  color: 'var(--color-text-secondary)',
+  lineHeight: 1.5,
+};
+
+const customModalActionsStyle: React.CSSProperties = {
+  display: 'flex',
+  gap: '10px',
+  marginTop: '10px',
+};
+
+const customModalCancelButtonStyle: React.CSSProperties = {
+  flex: 1,
+  padding: '12px',
+  borderRadius: '10px',
+  border: '1px solid var(--border-glass)',
+  background: 'rgba(255,255,255,0.02)',
+  color: 'var(--color-text-secondary)',
+  fontWeight: 600,
+  cursor: 'pointer',
+  WebkitTapHighlightColor: 'transparent',
+};
+
+const customModalConfirmButtonStyle: React.CSSProperties = {
+  flex: 1,
+  padding: '12px',
+  borderRadius: '10px',
+  border: 'none',
+  background: 'var(--grad-calories)',
+  color: '#fff',
+  fontWeight: 700,
+  cursor: 'pointer',
+  WebkitTapHighlightColor: 'transparent',
+  boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)',
+};
+
+const customToastStyle = (type: 'success' | 'error' | 'info'): React.CSSProperties => {
+  let bgColor = 'rgba(16, 185, 129, 0.15)';
+  let borderColor = 'rgba(16, 185, 129, 0.3)';
+  let color = '#34d399';
+  if (type === 'error') {
+    bgColor = 'rgba(239, 68, 68, 0.15)';
+    borderColor = 'rgba(239, 68, 68, 0.3)';
+    color = '#f87171';
+  } else if (type === 'info') {
+    bgColor = 'rgba(59, 130, 246, 0.15)';
+    borderColor = 'rgba(59, 130, 246, 0.3)';
+    color = '#60a5fa';
+  }
+
+  return {
+    position: 'fixed',
+    top: '24px',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    zIndex: 11000,
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    padding: '12px 20px',
+    borderRadius: '30px',
+    backgroundColor: bgColor,
+    border: `1px solid ${borderColor}`,
+    color: color,
+    fontWeight: 600,
+    fontSize: '0.85rem',
+    backdropFilter: 'blur(12px)',
+    boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+    animation: 'slideDown 0.3s ease-out',
+    maxWidth: '90%',
+    textAlign: 'center',
+  };
 };
 
 export default App;

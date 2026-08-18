@@ -45,6 +45,7 @@ export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysi
   const [isSearching, setIsSearching] = useState(false);
   const [selectedSearchProduct, setSelectedSearchProduct] = useState<any | null>(null);
   const [searchWeightGrams, setSearchWeightGrams] = useState(100);
+  const [searchSource, setSearchSource] = useState<'off' | 'ai'>('off');
 
   // Quick Add states
   const [quickName, setQuickName] = useState('');
@@ -178,13 +179,14 @@ export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysi
     }
   };
 
-  // Open Food Facts API Search
+  // Open Food Facts API Search (with AI Fallback)
   const searchFoodDatabase = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchQuery.trim()) return;
     setIsSearching(true);
     setError(null);
     setSelectedSearchProduct(null);
+    setSearchSource('off');
     try {
       const response = await fetch(
         `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(
@@ -198,8 +200,70 @@ export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysi
         setError('Nenhum alimento encontrado com esse nome.');
       }
     } catch (err) {
-      console.error(err);
-      setError('Erro de ligação ao pesquisar alimentos.');
+      console.log('Erro na base de dados externa. A tentar alternativa por IA...', err);
+      setSearchSource('ai');
+      try {
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`;
+        const geminiRequestBody = {
+          contents: [
+            {
+              parts: [
+                {
+                  text: `Estás a atuar como uma base de dados de nutrição. O utilizador pesquisou por "${searchQuery}".
+                  Devolve um array JSON com até 8 alimentos relevantes e realistas que correspondam à pesquisa em português de Portugal.
+                  Para cada alimento, estima os valores nutricionais por 100g.
+                  O teu output deve ser estritamente um JSON que siga exatamente este formato (não dês markdown, explicações ou blocos de código):
+                  {
+                    "products": [
+                      {
+                        "product_name": "Nome do alimento (ex: Peito de Frango Cru)",
+                        "brands": "Genérico",
+                        "nutriments": {
+                          "energy-kcal_100g": 120,
+                          "proteins_100g": 22.5,
+                          "carbohydrates_100g": 0,
+                          "fat_100g": 2.5
+                        }
+                      }
+                    ]
+                  }`,
+                },
+              ],
+            },
+          ],
+          generationConfig: {
+            responseMimeType: 'application/json',
+            temperature: 0.1,
+          },
+        };
+
+        const geminiResponse = await fetch(geminiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(geminiRequestBody),
+        });
+
+        if (!geminiResponse.ok) {
+          throw new Error('Falha no fallback de IA.');
+        }
+
+        const geminiData = await geminiResponse.json();
+        const textResponse = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!textResponse) {
+          throw new Error('Nenhum texto retornado pelo Gemini.');
+        }
+
+        const parsed = JSON.parse(textResponse.trim());
+        setSearchResults(parsed.products || []);
+        if ((parsed.products || []).length === 0) {
+          setError('Nenhum alimento encontrado.');
+        }
+      } catch (geminiErr) {
+        console.error('Falha dupla (OFF e Gemini):', geminiErr);
+        setError('Ocorreu um erro ao pesquisar alimentos. Base de dados e IA indisponíveis.');
+      }
     } finally {
       setIsSearching(false);
     }
@@ -333,7 +397,17 @@ export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysi
   };
 
   return (
-    <div className="glass-panel" style={containerStyle}>
+    <div className="glass-panel" style={{ ...containerStyle, position: 'relative' }}>
+      {isAnalyzing && (
+        <div style={scannerOverlayStyle}>
+          <div style={scannerLaserStyle} />
+          <div style={scannerContentStyle}>
+            <Loader2 size={36} style={{ animation: 'spin 1.5s linear infinite', color: 'var(--macro-calories)' }} />
+            <h3 style={scannerTitleStyle}>Motor de IA Activo</h3>
+            <p style={scannerSubStyle}>A analisar texturas, volumes e ingredientes...</p>
+          </div>
+        </div>
+      )}
       {/* iOS optimized tab bar */}
       <div style={modeTabContainerStyle}>
         <button
@@ -532,6 +606,11 @@ export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysi
           )}
 
           {/* Results list */}
+          {searchSource === 'ai' && searchResults.length > 0 && (
+            <div style={aiSearchWarningStyle}>
+              <span>💡 Base de dados em manutenção. Resultados estimados em tempo real por Inteligência Artificial.</span>
+            </div>
+          )}
           <div style={searchResultsListStyle} className="hide-scrollbar">
             {searchResults.map((prod) => (
               <div
@@ -1338,4 +1417,67 @@ const sessionReviewButtonStyle: React.CSSProperties = {
   fontSize: '0.85rem',
   fontWeight: 700,
   cursor: 'pointer',
+};
+
+const scannerOverlayStyle: React.CSSProperties = {
+  position: 'absolute',
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  backgroundColor: 'rgba(8, 12, 20, 0.88)',
+  backdropFilter: 'blur(8px)',
+  zIndex: 10,
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  borderRadius: '16px',
+  overflow: 'hidden',
+};
+
+const scannerLaserStyle: React.CSSProperties = {
+  position: 'absolute',
+  top: 0,
+  left: 0,
+  right: 0,
+  height: '3px',
+  background: 'linear-gradient(90deg, transparent, var(--macro-calories), transparent)',
+  animation: 'scan 2s linear infinite',
+  boxShadow: '0 0 12px var(--macro-calories)',
+};
+
+const scannerContentStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  gap: '12px',
+  textAlign: 'center',
+  padding: '24px',
+};
+
+const scannerTitleStyle: React.CSSProperties = {
+  fontSize: '1.2rem',
+  fontWeight: 800,
+  color: '#fff',
+  marginTop: '8px',
+};
+
+const scannerSubStyle: React.CSSProperties = {
+  fontSize: '0.85rem',
+  color: 'var(--color-text-secondary)',
+  maxWidth: '260px',
+  lineHeight: 1.4,
+};
+
+const aiSearchWarningStyle: React.CSSProperties = {
+  padding: '8px 12px',
+  backgroundColor: 'rgba(245, 158, 11, 0.1)',
+  border: '1px solid rgba(245, 158, 11, 0.2)',
+  color: '#fbbf24',
+  borderRadius: '10px',
+  fontSize: '0.75rem',
+  fontWeight: 500,
+  marginBottom: '10px',
+  lineHeight: 1.3,
 };

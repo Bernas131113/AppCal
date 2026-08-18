@@ -2,15 +2,16 @@ import React, { useState } from 'react';
 import type { Meal, UserGoals } from '../types';
 import { formatDateLabel, formatNumber, isSameDay } from '../utils/helpers';
 import { addFavorite } from '../utils/storage';
-import { ChevronLeft, ChevronRight, Trash2, Calendar, Coffee, Utensils, Moon, Carrot, Sparkles, Star } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Trash2, Calendar, Coffee, Utensils, Moon, Carrot, Sparkles, Star, Edit2 } from 'lucide-react';
 
 interface DashboardProps {
   meals: Meal[];
   goals: UserGoals;
   onDeleteMeal: (id: string) => void;
+  onEditMeal: (meal: Meal) => void;
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ meals, goals, onDeleteMeal }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ meals, goals, onDeleteMeal, onEditMeal }) => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
 
   // Filter meals for the selected day
@@ -269,6 +270,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ meals, goals, onDeleteMeal
                       title="Guardar como Favorito"
                     >
                       <Star size={16} />
+                    </button>
+
+                    {/* Edit button */}
+                    <button
+                      onClick={() => onEditMeal(meal)}
+                      style={editMealButtonStyle}
+                      title="Editar Refeição"
+                    >
+                      <Edit2 size={16} />
                     </button>
 
                     {/* Delete button */}
@@ -565,6 +575,19 @@ const deleteMealButtonStyle: React.CSSProperties = {
   background: 'none',
   border: 'none',
   color: 'var(--color-text-muted)',
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  padding: '6px',
+  borderRadius: '6px',
+  transition: 'color 0.2s',
+  WebkitTapHighlightColor: 'transparent',
+};
+
+const editMealButtonStyle: React.CSSProperties = {
+  background: 'none',
+  border: 'none',
+  color: 'var(--color-text-secondary)',
   cursor: 'pointer',
   display: 'flex',
   alignItems: 'center',

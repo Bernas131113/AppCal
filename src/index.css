@@ -211,3 +211,16 @@ button, input, textarea, select {
   }
 }
 
+/* AI Scan Laser animation */
+@keyframes scan {
+  0% { top: 0%; }
+  50% { top: 100%; }
+  100% { top: 0%; }
+}
+
+/* Custom Toast animation */
+@keyframes slideDown {
+  0% { transform: translate(-50%, -40px); opacity: 0; }
+  100% { transform: translate(-50%, 0); opacity: 1; }
+}
+
