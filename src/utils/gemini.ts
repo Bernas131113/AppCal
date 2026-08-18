@@ -154,7 +154,7 @@ export const analyzeMealWithGemini = async (
   if (model === 'gemini-2.5-pro' || model === 'gemini-1.5-flash' || model === 'gemini-2.5-flash') {
     model = 'gemini-3.6-flash';
   }
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  // URL is constructed dynamically below using the effective API key from .env
 
   // Assemble system instructions and core prompt
   const systemInstruction = 
@@ -237,36 +237,25 @@ export const analyzeMealWithGemini = async (
   };
 
   try {
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    // Use API key from .env (VITE_GEMINI_API_KEY)
+    // The Edge Function approach requires deployment to Supabase CLI first.
+    // For now we call Google's API directly — safe for local/dev use.
+    const envApiKey = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
+    const effectiveKey = envApiKey || apiKey;
 
-    let response;
-    if (supabaseUrl && supabaseAnonKey && supabaseUrl.includes('supabase.co')) {
-      // Secure call via Supabase Edge Function (API key stays hidden on backend!)
-      const edgeUrl = `${supabaseUrl}/functions/v1/gemini`;
-      response = await fetch(edgeUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabaseAnonKey}`,
-          'apikey': supabaseAnonKey
-        },
-        body: JSON.stringify({
-          model,
-          contents: requestBody.contents,
-          generationConfig: requestBody.generationConfig
-        }),
-      });
-    } else {
-      // Fallback direct call if Supabase is not active
-      response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
-      });
+    if (!effectiveKey) {
+      // No key at all — run demo simulation
+      return getSimulatedResponse(textNotes, photos.length > 0);
     }
+
+    const directUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${effectiveKey}`;
+    const response = await fetch(directUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    });
 
     if (!response.ok) {
       const errorText = await response.text();

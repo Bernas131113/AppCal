@@ -21,37 +21,46 @@ export const Settings: React.FC<SettingsProps> = ({ onSettingsSaved, onClose, sh
     try {
       const client = getSupabaseClient();
       if (!client) {
-        throw new Error("Supabase não configurado. Por favor, define as chaves VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no teu ficheiro .env.");
+        throw new Error("Supabase não configurado. Verifica o ficheiro .env — precisas de VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.");
       }
-      
-      const { error } = await client
-        .from('meals')
-        .select('id')
-        .limit(1);
-        
-      if (error) {
-        if (error.code === 'PGRST116' || error.message.includes('relation "public.meals" does not exist') || error.message.includes('not found')) {
-          throw new Error("Erro de base de dados: A tabela 'meals' não foi encontrada. Executaste o script SQL do ficheiro 'supabase_guide.txt' no editor de SQL do teu painel Supabase?");
+
+      // Step 1: Test basic connectivity via Auth endpoint (no RLS, always accessible)
+      const { error: authError } = await client.auth.getSession();
+      if (authError) {
+        throw new Error(`Erro de ligação ao Supabase: ${authError.message}`);
+      }
+
+      // Step 2: Try to reach a table — RLS will block anon, but that's EXPECTED and GOOD
+      // It means the table exists and security is working correctly
+      const { error: tableError } = await client.from('meals').select('id').limit(1);
+
+      if (tableError) {
+        if (tableError.code === 'PGRST205' || tableError.message?.includes('does not exist')) {
+          // Table doesn't exist yet
+          throw new Error("Tabelas não encontradas! Executaste o script SQL no painel Supabase? Vai a supabase_guide.txt e corre o SQL no SQL Editor.");
         }
-        throw error;
+        if (tableError.code === '42501' || tableError.message?.includes('permission denied')) {
+          // RLS blocked anon — this is CORRECT behaviour, tables exist and are secure!
+          if (showToast) showToast("✅ Supabase ligado! Tabelas criadas e seguras. Faz login na app para sincronizar os teus dados.", "success");
+          return;
+        }
+        // Any other error from the table
+        throw new Error(`Erro inesperado: ${tableError.message}`);
       }
-      
-      if (showToast) {
-        showToast("Ligação ao Supabase ativa! Tabelas prontas na Nuvem.", "success");
-      } else {
-        alert("Ligação ao Supabase ativa! Tabelas prontas na Nuvem.");
-      }
+
+      // If we reach here, anon can read — still OK (user is logged in)
+      if (showToast) showToast("✅ Supabase ligado! Tabelas prontas e acessíveis.", "success");
+
     } catch (err: any) {
       console.error(err);
       if (showToast) {
         showToast(err.message || "Erro de ligação ao Supabase.", "error");
-      } else {
-        alert(err.message || "Erro de ligação ao Supabase.");
       }
     } finally {
       setTestingConnection(false);
     }
   };
+
 
   // Mifflin-St Jeor TDEE & Macro calculator
   const runCalculations = (profile: UserProfile): { calories: number; protein: number; carbs: number; fats: number; tdee: number; bmr: number } => {

@@ -76,6 +76,13 @@ alter table public.meal_items enable row level security;
 alter table public.favorites enable row level security;
 alter table public.profiles enable row level security;
 
+-- Apagar políticas existentes (para evitar erros se o script for executado novamente)
+drop policy if exists "Utilizadores acedem aos seus próprios logs de peso" on public.weight_logs;
+drop policy if exists "Utilizadores acedem às suas próprias refeições" on public.meals;
+drop policy if exists "Utilizadores acedem aos itens das suas refeições" on public.meal_items;
+drop policy if exists "Utilizadores acedem aos seus próprios favoritos" on public.favorites;
+drop policy if exists "Utilizadores acedem ao seu próprio perfil" on public.profiles;
+
 -- Criar políticas de acesso individual
 create policy "Utilizadores acedem aos seus próprios logs de peso"
     on public.weight_logs for all using (auth.uid() = user_id);

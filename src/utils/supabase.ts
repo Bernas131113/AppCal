@@ -84,28 +84,18 @@ import type { Meal, WeightLog, AppSettings } from '../types';
       on public.favorites for all using (auth.uid() = user_id);
 */
 
-let supabase: any = null;
+// ─── Supabase Singleton ───────────────────────────────────────────────────────
+// Created ONCE at module level from .env — prevents "Multiple GoTrueClient"
+// instances warning that occurs when the client is destroyed and recreated.
+const _envUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+const _envKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 
-// Initialize Supabase Client dynamically
-export const getSupabaseClient = () => {
-  if (supabase) return supabase;
-  
-  const settings = JSON.parse(localStorage.getItem('appcal_settings') || '{}');
-  if (settings.useSupabase && settings.supabaseUrl && settings.supabaseAnonKey) {
-    try {
-      supabase = createClient(settings.supabaseUrl, settings.supabaseAnonKey);
-      return supabase;
-    } catch (e) {
-      console.error('Falha ao inicializar cliente Supabase:', e);
-    }
-  }
-  return null;
-};
+const supabase: any = (_envUrl && _envKey) ? createClient(_envUrl, _envKey) : null;
 
-// Clear Supabase cache if settings change
-export const resetSupabaseClient = () => {
-  supabase = null;
-};
+export const getSupabaseClient = () => supabase;
+
+// No-op kept for backwards compat — client is a singleton, never recreated
+export const resetSupabaseClient = () => {};
 
 // ==========================================
 // LOCAL MULTI-USER ENGINE (Fallback)
@@ -113,30 +103,60 @@ export const resetSupabaseClient = () => {
 export interface LocalUser {
   id: string;
   email: string;
-  passwordHash: string; // Plaintext representation for simulation
+  passwordHash: string;
 }
 
-const getLocalUsers = (): LocalUser[] => {
-  return JSON.parse(localStorage.getItem('appcal_users') || '[]');
-};
+const getLocalUsers = (): LocalUser[] =>
+  JSON.parse(localStorage.getItem('appcal_users') || '[]');
 
-const saveLocalUsers = (users: LocalUser[]) => {
+const saveLocalUsers = (users: LocalUser[]) =>
   localStorage.setItem('appcal_users', JSON.stringify(users));
-};
 
 export const getLoggedInUser = (): { id: string; email: string } | null => {
   const user = localStorage.getItem('appcal_current_user');
   return user ? JSON.parse(user) : null;
 };
 
+/** Returns true only if the string is a proper RFC-4122 UUID */
+const isValidUUID = (id: string): boolean =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
+/**
+ * Returns { client, userId } only when the Supabase client exists
+ * AND the local user ID is a valid UUID (created via Supabase Auth).
+ * Local-only accounts (non-UUID ids) always fall back to localStorage.
+ */
+const getSupabaseContext = (): { client: any; userId: string } | null => {
+  const user = getLoggedInUser();
+  if (!supabase || !user || !isValidUUID(user.id)) return null;
+  return { client: supabase, userId: user.id };
+};
+
 // ==========================================
 // AUTHENTICATION INTERFACE (Supabase & Local)
 // ==========================================
 export const dbSignUp = async (email: string, password: string): Promise<{ user: any; error: string | null }> => {
-  const client = getSupabaseClient();
-  if (client) {
-    const { data, error } = await client.auth.signUp({ email, password });
-    return { user: data.user, error: error ? error.message : null };
+  if (supabase) {
+    const { data, error } = await supabase.auth.signUp({ email, password });
+
+    if (error) return { user: null, error: error.message };
+
+    if (data?.session && data?.user) {
+      // Email confirmation is OFF — user is immediately authenticated
+      const sessionUser = { id: data.user.id, email: data.user.email };
+      localStorage.setItem('appcal_current_user', JSON.stringify(sessionUser));
+      return { user: data.user, error: null };
+    }
+
+    if (data?.user && !data?.session) {
+      // Email confirmation is ON — tell user to check inbox
+      return {
+        user: null,
+        error: 'Conta criada! Confirma o teu e-mail antes de iniciar sessão — verifica a caixa de entrada.'
+      };
+    }
+
+    return { user: null, error: 'Erro ao criar conta. Tenta novamente.' };
   } else {
     // Local Simulation
     const users = getLocalUsers();
@@ -146,7 +166,7 @@ export const dbSignUp = async (email: string, password: string): Promise<{ user:
     const newUser: LocalUser = {
       id: Math.random().toString(36).substring(2, 11) + '-' + Date.now().toString(),
       email,
-      passwordHash: password // Mock simulation
+      passwordHash: password
     };
     saveLocalUsers([...users, newUser]);
     const sessionUser = { id: newUser.id, email: newUser.email };
@@ -156,17 +176,39 @@ export const dbSignUp = async (email: string, password: string): Promise<{ user:
 };
 
 export const dbSignIn = async (email: string, password: string): Promise<{ user: any; error: string | null }> => {
-  const client = getSupabaseClient();
-  if (client) {
-    const { data, error } = await client.auth.signInWithPassword({ email, password });
-    return { user: data.user, error: error ? error.message : null };
+  if (supabase) {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+    if (data?.session && data?.user) {
+      // Full authenticated session — email confirmed, JWT active
+      const sessionUser = { id: data.user.id, email: data.user.email };
+      localStorage.setItem('appcal_current_user', JSON.stringify(sessionUser));
+      return { user: data.user, error: null };
+    }
+
+    if (data?.user && !data?.session) {
+      // User exists but no session = email NOT confirmed yet
+      return {
+        user: null,
+        error: 'Confirma o teu e-mail primeiro! Abre o link que recebeste na caixa de entrada e tenta iniciar sessão novamente.'
+      };
+    }
+
+    // Supabase Auth failed — try local fallback (accounts before Supabase)
+    const users = getLocalUsers();
+    const localUser = users.find(u => u.email.toLowerCase() === email.toLowerCase() && u.passwordHash === password);
+    if (localUser) {
+      const sessionUser = { id: localUser.id, email: localUser.email };
+      localStorage.setItem('appcal_current_user', JSON.stringify(sessionUser));
+      return { user: sessionUser, error: null };
+    }
+
+    return { user: null, error: error ? error.message : 'E-mail ou palavra-passe incorretos.' };
   } else {
-    // Local Simulation
+    // No Supabase — local only
     const users = getLocalUsers();
     const user = users.find(u => u.email.toLowerCase() === email.toLowerCase() && u.passwordHash === password);
-    if (!user) {
-      return { user: null, error: 'E-mail ou palavra-passe incorretos.' };
-    }
+    if (!user) return { user: null, error: 'E-mail ou palavra-passe incorretos.' };
     const sessionUser = { id: user.id, email: user.email };
     localStorage.setItem('appcal_current_user', JSON.stringify(sessionUser));
     return { user: sessionUser, error: null };
@@ -181,17 +223,18 @@ export const dbSignOut = async (): Promise<void> => {
   localStorage.removeItem('appcal_current_user');
 };
 
+
 // ==========================================
 // DATA SYNC LOGIC (Meals & Ingredients)
 // ==========================================
 export const fetchMeals = async (): Promise<Meal[]> => {
-  const client = getSupabaseClient();
   const user = getLoggedInUser();
   if (!user) return [];
 
-  if (client) {
+  const ctx = getSupabaseContext();
+  if (ctx) {
     try {
-      const { data, error } = await client
+      const { data, error } = await ctx.client
         .from('meals')
         .select(`
           id,
@@ -212,7 +255,7 @@ export const fetchMeals = async (): Promise<Meal[]> => {
             fats
           )
         `)
-        .eq('user_id', user.id)
+        .eq('user_id', ctx.userId)
         .order('logged_at', { ascending: false });
 
       if (error) throw error;
@@ -248,20 +291,20 @@ export const fetchMeals = async (): Promise<Meal[]> => {
 };
 
 export const insertMeal = async (meal: Meal): Promise<void> => {
-  const client = getSupabaseClient();
   const user = getLoggedInUser();
   if (!user) return;
 
-  if (client) {
+  const ctx = getSupabaseContext();
+  if (ctx) {
     try {
-      const isUuid = meal.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(meal.id);
       
       // 1. Upsert meal header
-      const { data: mealData, error: mealError } = await client
+      const { data: mealData, error: mealError } = await ctx.client
         .from('meals')
         .upsert({
-          id: isUuid ? meal.id : undefined, // Check if valid UUID, else auto-generate
-          user_id: user.id,
+          id: isUuid ? meal.id : undefined,
+          user_id: ctx.userId,
           meal_type: meal.meal_type,
           logged_at: meal.timestamp,
           photos: meal.photos,
@@ -276,8 +319,8 @@ export const insertMeal = async (meal: Meal): Promise<void> => {
 
       if (mealError) throw mealError;
 
-      // 2. Delete old meal items for this meal to avoid duplication on edit
-      await client.from('meal_items').delete().eq('meal_id', mealData.id);
+      // 2. Delete old meal items to avoid duplication on edit
+      await ctx.client.from('meal_items').delete().eq('meal_id', mealData.id);
 
       // 3. Insert detailed food items
       const itemsToInsert = meal.items.map((item) => ({
@@ -290,7 +333,7 @@ export const insertMeal = async (meal: Meal): Promise<void> => {
         fats: item.fats,
       }));
 
-      const { error: itemsError } = await client.from('meal_items').insert(itemsToInsert);
+      const { error: itemsError } = await ctx.client.from('meal_items').insert(itemsToInsert);
       if (itemsError) throw itemsError;
       return;
     } catch (e) {
@@ -304,27 +347,24 @@ export const insertMeal = async (meal: Meal): Promise<void> => {
   
   let updatedMeals;
   if (exists) {
-    // Edit existing
     updatedMeals = allMeals.map((m: any) => 
       (m.id === meal.id && m.user_id === user.id) ? { ...meal, user_id: user.id } : m
     );
   } else {
-    // Add new
-    const localMealWithUser = { ...meal, user_id: user.id };
-    updatedMeals = [localMealWithUser, ...allMeals];
+    updatedMeals = [{ ...meal, user_id: user.id }, ...allMeals];
   }
   
   localStorage.setItem('appcal_meals_v2', JSON.stringify(updatedMeals));
 };
 
 export const deleteMealDb = async (id: string): Promise<void> => {
-  const client = getSupabaseClient();
   const user = getLoggedInUser();
   if (!user) return;
 
-  if (client) {
+  const ctx = getSupabaseContext();
+  if (ctx) {
     try {
-      const { error } = await client.from('meals').delete().eq('id', id).eq('user_id', user.id);
+      const { error } = await ctx.client.from('meals').delete().eq('id', id).eq('user_id', ctx.userId);
       if (error) throw error;
       return;
     } catch (e) {
@@ -342,22 +382,22 @@ export const deleteMealDb = async (id: string): Promise<void> => {
 // DATA SYNC LOGIC (Weight Tracking)
 // ==========================================
 export const fetchWeightLogs = async (): Promise<WeightLog[]> => {
-  const client = getSupabaseClient();
   const user = getLoggedInUser();
   if (!user) return [];
 
-  if (client) {
+  const ctx = getSupabaseContext();
+  if (ctx) {
     try {
-      const { data, error } = await client
+      const { data, error } = await ctx.client
         .from('weight_logs')
         .select('id, date, weight_kg')
-        .eq('user_id', user.id)
+        .eq('user_id', ctx.userId)
         .order('date', { ascending: true });
 
       if (error) throw error;
       return (data || []).map((l: any) => ({
         id: l.id,
-        user_id: user.id,
+        user_id: ctx.userId,
         date: l.date,
         weight_kg: Number(l.weight_kg),
       }));
@@ -374,20 +414,19 @@ export const fetchWeightLogs = async (): Promise<WeightLog[]> => {
 };
 
 export const insertWeightLog = async (date: string, weightKg: number): Promise<WeightLog[]> => {
-  const client = getSupabaseClient();
   const user = getLoggedInUser();
   if (!user) return [];
 
-  if (client) {
+  const ctx = getSupabaseContext();
+  if (ctx) {
     try {
-      // Upsert to ensure one weight log per day max
-      const { error } = await client.from('weight_logs').upsert({
-        user_id: user.id,
+      const { error } = await ctx.client.from('weight_logs').upsert({
+        user_id: ctx.userId,
         date,
         weight_kg: weightKg,
       }, { onConflict: 'user_id,date' });
-
       if (error) throw error;
+      return fetchWeightLogs();
     } catch (e) {
       console.error('Erro ao guardar peso no Supabase.', e);
     }
@@ -395,8 +434,6 @@ export const insertWeightLog = async (date: string, weightKg: number): Promise<W
 
   // Local fallback cache update
   const allLogs = JSON.parse(localStorage.getItem('appcal_weight_logs') || '[]');
-  
-  // Remove existing log for same user/date if any
   const filtered = allLogs.filter((l: any) => !(l.user_id === user.id && l.date === date));
   const newLog: WeightLog = {
     id: Math.random().toString(36).substring(2, 9) + '-' + Date.now().toString(),
@@ -410,13 +447,13 @@ export const insertWeightLog = async (date: string, weightKg: number): Promise<W
 };
 
 export const deleteWeightLogDb = async (id: string): Promise<WeightLog[]> => {
-  const client = getSupabaseClient();
   const user = getLoggedInUser();
   if (!user) return [];
 
-  if (client) {
+  const ctx = getSupabaseContext();
+  if (ctx) {
     try {
-      const { error } = await client.from('weight_logs').delete().eq('id', id).eq('user_id', user.id);
+      const { error } = await ctx.client.from('weight_logs').delete().eq('id', id).eq('user_id', ctx.userId);
       if (error) throw error;
     } catch (e) {
       console.error('Erro ao apagar log de peso no Supabase.', e);
@@ -431,47 +468,41 @@ export const deleteWeightLogDb = async (id: string): Promise<WeightLog[]> => {
 };
 
 export const fetchProfileSettings = async (): Promise<AppSettings | null> => {
-  const client = getSupabaseClient();
-  const user = getLoggedInUser();
-  if (!user) return null;
+  const ctx = getSupabaseContext();
+  if (!ctx) return null;
 
-  if (client) {
-    try {
-      const { data, error } = await client
-        .from('profiles')
-        .select('settings')
-        .eq('id', user.id)
-        .maybeSingle();
+  try {
+    const { data, error } = await ctx.client
+      .from('profiles')
+      .select('settings')
+      .eq('id', ctx.userId)
+      .maybeSingle();
 
-      if (error) throw error;
-      if (data && data.settings) {
-        return data.settings as AppSettings;
-      }
-    } catch (e) {
-      console.error('Erro ao ler perfil do Supabase:', e);
+    if (error) throw error;
+    if (data && data.settings) {
+      return data.settings as AppSettings;
     }
+  } catch (e) {
+    console.error('Erro ao ler perfil do Supabase:', e);
   }
   return null;
 };
 
 export const saveProfileSettings = async (settings: AppSettings): Promise<void> => {
-  const client = getSupabaseClient();
-  const user = getLoggedInUser();
-  if (!user) return;
+  const ctx = getSupabaseContext();
+  if (!ctx) return;
 
-  if (client) {
-    try {
-      const { error } = await client
-        .from('profiles')
-        .upsert({
-          id: user.id,
-          settings: settings,
-          updated_at: new Date().toISOString()
-        });
+  try {
+    const { error } = await ctx.client
+      .from('profiles')
+      .upsert({
+        id: ctx.userId,
+        settings: settings,
+        updated_at: new Date().toISOString()
+      });
 
-      if (error) throw error;
-    } catch (e) {
-      console.error('Erro ao guardar perfil no Supabase:', e);
-    }
+    if (error) throw error;
+  } catch (e) {
+    console.error('Erro ao guardar perfil no Supabase:', e);
   }
 };
