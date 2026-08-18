@@ -30,7 +30,8 @@ function App() {
     confirmAction,
     isInitializing,
     setIsInitializing,
-    syncSettingsFromCloud
+    syncSettingsFromCloud,
+    showSettings
   } = useAppStore();
 
   // Check login session on mount
@@ -275,7 +276,7 @@ function App() {
       )}
 
       {/* Settings Modal Dialog */}
-      {useAppStore((state) => state.settings && (useAppStore.getState() as any).showSettings) && (
+      {showSettings && (
         <Settings
           onSettingsSaved={handleSettingsSaved}
           onClose={() => useAppStore.setState({ showSettings: false })}
@@ -292,7 +293,7 @@ const loadingPageStyle: React.CSSProperties = {
   flexDirection: 'column',
   alignItems: 'center',
   justifyContent: 'center',
-  minHeight: '100vh',
+  minHeight: '100dvh',
   backgroundColor: 'var(--bg-app)',
 };
 
@@ -300,11 +301,11 @@ const appLayoutContainerStyle: React.CSSProperties = {
   width: '100%',
   maxWidth: '1200px',
   margin: '0 auto',
-  padding: '16px 16px 90px 16px', // bottom padding for floating iOS nav bar
+  padding: 'calc(16px + env(safe-area-inset-top)) 16px calc(90px + env(safe-area-inset-bottom)) 16px',
   display: 'flex',
   flexDirection: 'column',
   gap: '16px',
-  minHeight: '100vh',
+  minHeight: '100dvh',
 };
 
 const headerStyle: React.CSSProperties = {
@@ -397,7 +398,7 @@ const mainContentGridStyle: React.CSSProperties = {
 
 const bottomNavStyle: React.CSSProperties = {
   position: 'fixed',
-  bottom: '16px',
+  bottom: 'calc(16px + env(safe-area-inset-bottom))',
   left: '50%',
   transform: 'translateX(-50%)',
   width: 'calc(100% - 32px)',
