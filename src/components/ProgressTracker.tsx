@@ -419,12 +419,14 @@ const weightFormStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: '12px',
+  width: '100%',
 };
 
 const inputGroupStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: '4px',
+  width: '100%',
 };
 
 const labelStyle: React.CSSProperties = {
@@ -444,6 +446,7 @@ const inputStyle: React.CSSProperties = {
   outline: 'none',
   fontSize: '16px', // iOS scale
   color: '#fff',
+  boxSizing: 'border-box',
 };
 
 const addWeightButtonStyle: React.CSSProperties = {

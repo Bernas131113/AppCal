@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
-import { X } from 'lucide-react';
+import { X, Camera, AlertCircle, Loader2 } from 'lucide-react';
 
 interface BarcodeScannerProps {
   onScanSuccess: (decodedText: string) => void;
@@ -8,126 +8,59 @@ interface BarcodeScannerProps {
 }
 
 export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScanSuccess, onClose }) => {
-  const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [barcodeInput, setBarcodeInput] = useState('');
-  const [isScanning, setIsScanning] = useState(false);
-  const scannerId = "barcode-scanner-viewport";
+  const [status, setStatus] = useState<'idle' | 'processing' | 'error'>('idle');
+  const [errorMessage, setErrorMessage] = useState('');
+  const hiddenReaderId = "hidden-file-barcode-reader";
 
+  // Automatically trigger the device camera file picker on mount
   useEffect(() => {
-    let active = true;
-    let scannerInstance: Html5Qrcode | null = null;
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  }, []);
 
-    const startCameraScan = async () => {
-      try {
-        const element = document.getElementById(scannerId);
-        if (!element) return;
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-        scannerInstance = new Html5Qrcode(scannerId);
-        html5QrCodeRef.current = scannerInstance;
+    setStatus('processing');
+    setErrorMessage('');
 
-        const config = {
-          fps: 15, // Faster frame acquisition rate
-          qrbox: { width: 220, height: 100 }, // Bounding box matching the card aspect ratio
-          formatsToSupport: [
-            Html5QrcodeSupportedFormats.EAN_13,
-            Html5QrcodeSupportedFormats.EAN_8,
-            Html5QrcodeSupportedFormats.UPC_A,
-            Html5QrcodeSupportedFormats.UPC_E,
-            Html5QrcodeSupportedFormats.CODE_128,
-            Html5QrcodeSupportedFormats.CODE_39,
-            Html5QrcodeSupportedFormats.ITF,
-            Html5QrcodeSupportedFormats.QR_CODE
-          ]
-        };
+    try {
+      // Create a static reader instance
+      const html5QrCode = new Html5Qrcode(hiddenReaderId, {
+        verbose: false,
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.EAN_13,
+          Html5QrcodeSupportedFormats.EAN_8,
+          Html5QrcodeSupportedFormats.UPC_A,
+          Html5QrcodeSupportedFormats.UPC_E,
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.CODE_39,
+          Html5QrcodeSupportedFormats.ITF,
+          Html5QrcodeSupportedFormats.QR_CODE
+        ]
+      });
 
-        const onDecoded = (decodedText: string) => {
-          if (navigator.vibrate) {
-            try {
-              navigator.vibrate([200]);
-            } catch (vibrateErr) {
-              console.warn("Vibration failed:", vibrateErr);
-            }
-          }
-          onScanSuccess(decodedText);
-        };
-
-        const onScanError = () => {};
-
-        try {
-          await scannerInstance.start(
-            { facingMode: { exact: "environment" } },
-            config,
-            onDecoded,
-            onScanError
-          );
-          if (active) setIsScanning(true);
-        } catch (firstErr) {
-          console.warn("Failed to force exact environment camera, fallback...", firstErr);
-          if (!active) return;
-          try {
-            await scannerInstance.start(
-              { facingMode: "environment" },
-              config,
-              onDecoded,
-              onScanError
-            );
-            if (active) setIsScanning(true);
-          } catch (secondErr) {
-            console.error("Failed to start fallback camera scanner:", secondErr);
-          }
-        }
-
-        // Apply playsinline and ensure object-fit: cover for the video feed inside the card container
-        let attempts = 0;
-        const interval = setInterval(() => {
-          attempts++;
-          const container = document.getElementById(scannerId);
-          const video = container?.querySelector('video');
-          if (video) {
-            video.setAttribute('playsinline', 'true');
-            video.setAttribute('webkit-playsinline', 'true');
-            video.setAttribute('autoplay', 'true');
-            video.setAttribute('muted', 'true');
-            video.setAttribute('controls', 'false');
-            video.style.objectFit = 'cover';
-            video.style.width = '100%';
-            video.style.height = '100%';
-            video.play().catch(e => console.warn("Video auto-play failed/blocked on iOS:", e));
-            clearInterval(interval);
-          }
-          if (attempts > 60) {
-            clearInterval(interval);
-          }
-        }, 50);
-
-      } catch (err) {
-        console.error("Erro ao inicializar scanner:", err);
-      }
-    };
-
-    const timeout = setTimeout(() => {
-      if (active) {
-        startCameraScan();
-      }
-    }, 150);
-
-    return () => {
-      active = false;
-      clearTimeout(timeout);
+      // Statically scan the photo captured by the native high-quality camera
+      const decodedText = await html5QrCode.scanFile(file, false);
       
-      if (scannerInstance) {
-        if (scannerInstance.isScanning) {
-          scannerInstance.stop()
-            .then(() => {
-              console.log("Scanner parado e stream de camera libertado.");
-            })
-            .catch(err => {
-              console.error("Erro ao fechar scanner e libertar camera:", err);
-            });
-        }
+      // Haptic/tactile vibration feedback on success
+      if (navigator.vibrate) {
+        try { navigator.vibrate([200]); } catch (vErr) {}
       }
-    };
-  }, [onScanSuccess]);
+      
+      onScanSuccess(decodedText);
+    } catch (err: any) {
+      console.warn("Falha ao descodificar imagem do código de barras:", err);
+      setStatus('error');
+      setErrorMessage(
+        'Não foi possível detetar o código de barras nesta foto. Certifique-se de que a imagem está focada, bem iluminada e repita o processo, ou digite o código de barras manualmente abaixo.'
+      );
+    }
+  };
 
   const handleManualSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -136,13 +69,32 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScanSuccess, o
     }
   };
 
+  const triggerCamera = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
   return (
     <div style={overlayStyle}>
+      {/* Hidden element bound by Html5Qrcode */}
+      <div id={hiddenReaderId} style={{ display: 'none' }} />
+
+      {/* Hidden native camera trigger file input */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        accept="image/*"
+        capture="environment"
+        onChange={handleFileChange}
+        style={{ display: 'none' }}
+      />
+
       <div className="glass-panel animate-pulse-slow" style={containerStyle}>
         
-        {/* Header Title & Close Button */}
+        {/* Header */}
         <div style={headerStyle}>
-          <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: '#fff', margin: 0 }}>
+          <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#fff', margin: 0 }}>
             Leitor de Código de Barras
           </h3>
           <button 
@@ -155,25 +107,49 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScanSuccess, o
           </button>
         </div>
 
-        {/* Centered Small Viewfinder Card */}
-        <div style={viewfinderWrapperStyle}>
-          <div id={scannerId} style={cameraViewportStyle} />
-          
-          {/* Glowing laser line animation */}
-          <div className="scanner-laser-line" style={{ top: '50%' }} />
+        {/* View States */}
+        {status === 'idle' && (
+          <div style={centerBoxStyle} onClick={triggerCamera}>
+            <Camera size={36} style={{ color: 'var(--macro-calories)', marginBottom: '8px' }} />
+            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#fff' }}>
+              Tirar Foto ao Código de Barras
+            </span>
+            <span style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', marginTop: '4px', textAlign: 'center' }}>
+              Toque aqui para abrir a câmara do iPhone e tirar uma foto focada ao código de barras.
+            </span>
+          </div>
+        )}
 
-          {/* Bounding box brackets */}
-          <div className="scanner-corner scanner-corner-tl" />
-          <div className="scanner-corner scanner-corner-tr" />
-          <div className="scanner-corner scanner-corner-bl" />
-          <div className="scanner-corner scanner-corner-br" />
-        </div>
+        {status === 'processing' && (
+          <div style={centerBoxStyle}>
+            <Loader2 size={36} className="animate-spin" style={{ color: 'var(--macro-calories)', marginBottom: '8px' }} />
+            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#fff' }}>
+              A processar imagem...
+            </span>
+            <span style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', marginTop: '4px' }}>
+              A ler dados do código de barras da fotografia.
+            </span>
+          </div>
+        )}
 
-        <p style={instructionsStyle}>
-          {!isScanning ? 'A ligar a câmara...' : 'Aponte para o código de barras do produto'}
-        </p>
+        {status === 'error' && (
+          <div style={errorBoxStyle}>
+            <AlertCircle size={24} style={{ color: '#f87171', marginBottom: '6px', flexShrink: 0 }} />
+            <p style={{ fontSize: '0.75rem', color: '#f87171', margin: 0, textAlign: 'center', lineHeight: 1.3 }}>
+              {errorMessage}
+            </p>
+            <button 
+              type="button" 
+              onClick={triggerCamera} 
+              style={retryButtonStyle}
+            >
+              <Camera size={14} />
+              <span>Tirar outra foto</span>
+            </button>
+          </div>
+        )}
 
-        {/* Horizontal Divider */}
+        {/* Divider */}
         <div style={dividerStyle}>
           <div style={lineStyle} />
           <span style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', fontWeight: 600 }}>ou manual</span>
@@ -186,14 +162,15 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScanSuccess, o
             type="number"
             pattern="[0-9]*"
             inputMode="numeric"
-            placeholder="Código de barras"
+            placeholder="Introduza o código manualmente"
             value={barcodeInput}
             onChange={(e) => setBarcodeInput(e.target.value)}
             style={inputStyle}
+            disabled={status === 'processing'}
           />
           <button
             type="submit"
-            disabled={!barcodeInput.trim()}
+            disabled={!barcodeInput.trim() || status === 'processing'}
             style={submitButtonStyle}
           >
             Procurar
@@ -205,7 +182,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScanSuccess, o
   );
 };
 
-// CSS Styles for Popover layout
+// CSS popover styles
 const overlayStyle: React.CSSProperties = {
   position: 'fixed',
   inset: 0,
@@ -253,26 +230,41 @@ const closeButtonStyle: React.CSSProperties = {
   transition: 'all 0.2s',
 };
 
-const viewfinderWrapperStyle: React.CSSProperties = {
-  position: 'relative',
-  width: '100%',
-  height: '140px',
+const centerBoxStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '24px 16px',
   borderRadius: '12px',
-  overflow: 'hidden',
-  border: '1px solid rgba(255, 255, 255, 0.1)',
-  backgroundColor: '#000',
+  border: '1px dashed rgba(255, 255, 255, 0.15)',
+  backgroundColor: 'rgba(255, 255, 255, 0.02)',
+  cursor: 'pointer',
 };
 
-const cameraViewportStyle: React.CSSProperties = {
-  width: '100%',
-  height: '100%',
+const errorBoxStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  padding: '14px',
+  borderRadius: '12px',
+  border: '1px solid rgba(239, 68, 68, 0.2)',
+  backgroundColor: 'rgba(239, 68, 68, 0.05)',
 };
 
-const instructionsStyle: React.CSSProperties = {
+const retryButtonStyle: React.CSSProperties = {
+  marginTop: '10px',
+  display: 'flex',
+  alignItems: 'center',
+  gap: '6px',
+  padding: '8px 12px',
+  borderRadius: '8px',
+  border: 'none',
+  background: 'rgba(255,255,255,0.08)',
+  color: '#fff',
   fontSize: '0.75rem',
-  color: 'var(--color-text-secondary)',
-  textAlign: 'center',
-  margin: 0,
+  fontWeight: 600,
+  cursor: 'pointer',
 };
 
 const dividerStyle: React.CSSProperties = {
