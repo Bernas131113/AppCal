@@ -1,7 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import type { FoodItem, MealType, Meal } from '../types';
-import { Trash2, Plus, Check, X, AlertCircle } from 'lucide-react';
+import { Trash2, Plus, Check, X, AlertCircle, Minus } from 'lucide-react';
 import { generateId, formatNumber } from '../utils/helpers';
+
+interface EditableFoodItem extends FoodItem {
+  base: {
+    weight_g: number;
+    calories: number;
+    protein: number;
+    carbs: number;
+    fats: number;
+  };
+}
 
 interface MealReviewProps {
   initialMealType: MealType;
@@ -21,33 +31,96 @@ export const MealReview: React.FC<MealReviewProps> = ({
   onCancel,
 }) => {
   const [mealType, setMealType] = useState<MealType>(initialMealType);
-  const [items, setItems] = useState<FoodItem[]>([]);
+  const [items, setItems] = useState<EditableFoodItem[]>([]);
 
-  // Initialize and ensure all numbers are parsed correctly
+  // Initialize and double-buffer base values to allow proportional calculations
   useEffect(() => {
-    const formatted = initialItems.map((item) => ({
-      name: item.name || 'Alimento',
-      weight_g: Number(item.weight_g) || 100,
-      calories: Number(item.calories) || 0,
-      protein: Number(item.protein) || 0,
-      carbs: Number(item.carbs) || 0,
-      fats: Number(item.fats) || 0,
-      confidence: item.confidence || 'medium',
-    }));
+    const formatted = initialItems.map((item) => {
+      const w = Number(item.weight_g) || 100;
+      const cal = Number(item.calories) || 0;
+      const prot = Number(item.protein) || 0;
+      const carb = Number(item.carbs) || 0;
+      const fat = Number(item.fats) || 0;
+      return {
+        name: item.name || 'Alimento',
+        weight_g: w,
+        calories: cal,
+        protein: prot,
+        carbs: carb,
+        fats: fat,
+        confidence: item.confidence || 'medium',
+        base: {
+          weight_g: w,
+          calories: cal,
+          protein: prot,
+          carbs: carb,
+          fats: fat,
+        },
+      };
+    });
     setItems(formatted);
   }, [initialItems]);
 
-  // Edit item handler
+  // Proportional weight change logic
+  const handleWeightChange = (index: number, newWeight: number) => {
+    const safeWeight = Math.max(10, newWeight);
+    setItems((prev) => {
+      const updated = [...prev];
+      const item = updated[index];
+      const base = item.base;
+
+      if (base.weight_g > 0) {
+        const ratio = safeWeight / base.weight_g;
+        updated[index] = {
+          ...item,
+          weight_g: safeWeight,
+          calories: Math.round(base.calories * ratio),
+          protein: Number((base.protein * ratio).toFixed(1)),
+          carbs: Number((base.carbs * ratio).toFixed(1)),
+          fats: Number((base.fats * ratio).toFixed(1)),
+        };
+      } else {
+        updated[index] = {
+          ...item,
+          weight_g: safeWeight,
+        };
+      }
+      return updated;
+    });
+  };
+
+  // Step adjustment (+/- buttons)
+  const adjustWeightStep = (index: number, delta: number) => {
+    const currentWeight = items[index].weight_g;
+    handleWeightChange(index, currentWeight + delta);
+  };
+
+  // Direct edit fields (e.g. typing)
   const handleItemChange = (index: number, field: keyof FoodItem, value: string | number) => {
     setItems((prev) => {
       const updated = [...prev];
+      const item = updated[index];
+
+      let updatedItem = { ...item };
       if (field === 'name') {
-        updated[index] = { ...updated[index], [field]: value as string };
+        updatedItem.name = value as string;
       } else {
-        // Handle numeric fields
         const numVal = value === '' ? 0 : Number(value);
-        updated[index] = { ...updated[index], [field]: Math.max(0, numVal) };
+        updatedItem = {
+          ...updatedItem,
+          [field]: Math.max(0, numVal),
+        };
+
+        // If manually edited, reset base to allow scaling from this new custom baseline
+        updatedItem.base = {
+          weight_g: updatedItem.weight_g,
+          calories: field === 'calories' ? Math.max(0, numVal) : updatedItem.calories,
+          protein: field === 'protein' ? Math.max(0, numVal) : updatedItem.protein,
+          carbs: field === 'carbs' ? Math.max(0, numVal) : updatedItem.carbs,
+          fats: field === 'fats' ? Math.max(0, numVal) : updatedItem.fats,
+        };
       }
+      updated[index] = updatedItem;
       return updated;
     });
   };
@@ -64,6 +137,13 @@ export const MealReview: React.FC<MealReviewProps> = ({
         carbs: 0,
         fats: 0,
         confidence: 'high',
+        base: {
+          weight_g: 100,
+          calories: 0,
+          protein: 0,
+          carbs: 0,
+          fats: 0,
+        },
       },
     ]);
   };
@@ -81,11 +161,21 @@ export const MealReview: React.FC<MealReviewProps> = ({
 
   // Confirm and save meal
   const handleConfirmSave = () => {
+    const cleanItems: FoodItem[] = items.map(({ name, weight_g, calories, protein, carbs, fats, confidence }) => ({
+      name,
+      weight_g,
+      calories,
+      protein,
+      carbs,
+      fats,
+      confidence,
+    }));
+
     const newMeal: Meal = {
       id: generateId(),
       timestamp: new Date().toISOString(),
       meal_type: mealType,
-      items,
+      items: cleanItems,
       photos,
       total_calories: totalCalories,
       total_protein: totalProtein,
@@ -96,27 +186,26 @@ export const MealReview: React.FC<MealReviewProps> = ({
     onSave(newMeal);
   };
 
-  const getMealTypeLabel = (type: MealType): string => {
-    switch (type) {
-      case 'breakfast': return 'Pequeno-almoço';
-      case 'lunch': return 'Almoço';
-      case 'dinner': return 'Jantar';
-      case 'snack': return 'Snack';
-    }
-  };
+  const mealTypesList: { value: MealType; label: string }[] = [
+    { value: 'breakfast', label: 'Pequeno-almoço' },
+    { value: 'lunch', label: 'Almoço' },
+    { value: 'snack', label: 'Lanche' },
+    { value: 'dinner', label: 'Jantar' },
+    { value: 'supper', label: 'Ceia' },
+    { value: 'extrasnack', label: 'Snacks' },
+  ];
 
   return (
     <div className="glass-panel" style={reviewContainerStyle}>
       <div style={reviewHeaderStyle}>
         <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>Revisão Nutricional da IA</h2>
         <span style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
-          Ajuste as porções e detalhes se necessário
+          Ajuste as porções proporcionalmente e confirme os ingredientes
         </span>
       </div>
 
       <div style={reviewContentSplitStyle}>
-        
-        {/* Photos and Info Sidebar */}
+        {/* Left Side: Photo & Meal Classification */}
         <div style={sidebarStyle}>
           {photos.length > 0 && (
             <div style={photoGridStyle}>
@@ -127,121 +216,163 @@ export const MealReview: React.FC<MealReviewProps> = ({
           )}
 
           <div className="glass-card" style={mealTypeSelectorContainerStyle}>
-            <label style={labelStyle}>Tipo de Refeição</label>
+            <label style={labelStyle}>Classificação da Refeição</label>
             <div style={mealTypeGridStyle}>
-              {(['breakfast', 'lunch', 'dinner', 'snack'] as MealType[]).map((type) => (
+              {mealTypesList.map((type) => (
                 <button
-                  key={type}
+                  key={type.value}
                   type="button"
-                  onClick={() => setMealType(type)}
+                  onClick={() => setMealType(type.value)}
                   style={{
                     ...mealTypeButtonStyle,
-                    ...(mealType === type ? activeMealTypeButtonStyle : {}),
+                    ...(mealType === type.value ? activeMealTypeButtonStyle : {}),
                   }}
                 >
-                  {getMealTypeLabel(type)}
+                  {type.label}
                 </button>
               ))}
             </div>
           </div>
         </div>
 
-        {/* Ingredients Table */}
-        <div style={tableContainerStyle}>
-          <div style={tableHeaderRowStyle}>
-            <span style={{ ...tableColStyle, flex: 3.5 }}>Ingrediente</span>
-            <span style={{ ...tableColStyle, flex: 1.2 }}>Peso (g)</span>
-            <span style={{ ...tableColStyle, flex: 1.2 }}>Cal (kcal)</span>
-            <span style={{ ...tableColStyle, flex: 1.1 }}>Prot (g)</span>
-            <span style={{ ...tableColStyle, flex: 1.1 }}>Carb (g)</span>
-            <span style={{ ...tableColStyle, flex: 1.1 }}>Lip (g)</span>
-            <span style={{ ...tableColStyle, width: '40px', flex: 'none' }}></span>
-          </div>
-
-          <div style={tableBodyStyle}>
+        {/* Right Side: Visual Ingredient Cards */}
+        <div style={cardsContainerStyle}>
+          <div style={cardsBodyStyle}>
             {items.length === 0 ? (
               <div style={emptyStateStyle}>
-                <AlertCircle size={20} style={{ color: 'var(--color-text-muted)' }} />
-                <span style={{ color: 'var(--color-text-secondary)' }}>Nenhum ingrediente. Adicione abaixo.</span>
+                <AlertCircle size={24} style={{ color: 'var(--color-text-muted)' }} />
+                <span style={{ color: 'var(--color-text-secondary)', fontWeight: 500 }}>
+                  Nenhum ingrediente detetado. Adicione manualmente.
+                </span>
               </div>
             ) : (
               items.map((item, index) => (
-                <div key={index} style={tableRowStyle} className="glass-card">
-                  <div style={{ ...tableColStyle, flex: 3.5, flexDirection: 'column', gap: '4px' }}>
+                <div key={index} className="glass-card" style={ingredientCardStyle}>
+                  
+                  {/* Title & Delete line */}
+                  <div style={cardHeaderRowStyle}>
                     <input
                       type="text"
                       value={item.name}
                       onChange={(e) => handleItemChange(index, 'name', e.target.value)}
-                      style={tableInputStyle}
+                      placeholder="Nome do ingrediente..."
+                      style={cardTitleInputStyle}
                     />
-                    {item.confidence && (
-                      <span className={`badge-confidence ${item.confidence}`} style={{ alignSelf: 'flex-start' }}>
+                    
+                    <button
+                      onClick={() => handleDeleteItem(index)}
+                      style={deleteCardButtonStyle}
+                      title="Apagar ingrediente"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+
+                  {/* Confidence Badge */}
+                  {item.confidence && (
+                    <div style={{ marginBottom: '8px' }}>
+                      <span className={`badge-confidence ${item.confidence}`}>
                         {item.confidence === 'high' ? 'Alta Confiança' : item.confidence === 'medium' ? 'Confiança Média' : 'Baixa Confiança'}
                       </span>
-                    )}
-                  </div>
-                  
-                  <div style={{ ...tableColStyle, flex: 1.2 }}>
-                    <input
-                      type="number"
-                      value={item.weight_g || ''}
-                      onChange={(e) => handleItemChange(index, 'weight_g', e.target.value)}
-                      style={tableInputStyle}
-                    />
+                    </div>
+                  )}
+
+                  {/* Proportional Portion Slider & Buttons */}
+                  <div className="glass-card" style={portionControlContainerStyle}>
+                    <span style={portionLabelStyle}>Porção</span>
+                    <div style={sliderRowStyle}>
+                      <button
+                        onClick={() => adjustWeightStep(index, -10)}
+                        style={stepButtonStyle}
+                        type="button"
+                      >
+                        <Minus size={14} />
+                      </button>
+                      
+                      <input
+                        type="range"
+                        min="10"
+                        max="600"
+                        step="5"
+                        value={item.weight_g}
+                        onChange={(e) => handleWeightChange(index, parseInt(e.target.value) || 10)}
+                        style={sliderStyle}
+                      />
+
+                      <button
+                        onClick={() => adjustWeightStep(index, 10)}
+                        style={stepButtonStyle}
+                        type="button"
+                      >
+                        <Plus size={14} />
+                      </button>
+
+                      <div style={weightDisplayContainerStyle}>
+                        <input
+                          type="number"
+                          value={item.weight_g || ''}
+                          onChange={(e) => handleWeightChange(index, parseInt(e.target.value) || 0)}
+                          style={weightNumberInputStyle}
+                        />
+                        <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', fontWeight: 600 }}>g</span>
+                      </div>
+                    </div>
                   </div>
 
-                  <div style={{ ...tableColStyle, flex: 1.2 }}>
-                    <input
-                      type="number"
-                      value={item.calories || ''}
-                      onChange={(e) => handleItemChange(index, 'calories', e.target.value)}
-                      style={tableInputStyle}
-                    />
+                  {/* Macros Grid */}
+                  <div style={cardMacrosGridStyle}>
+                    {/* Calories */}
+                    <div style={{ ...macroInputWrapperStyle, borderColor: 'var(--macro-calories)' }}>
+                      <label style={macroInputLabelStyle}>Calorias (kcal)</label>
+                      <input
+                        type="number"
+                        value={item.calories || ''}
+                        onChange={(e) => handleItemChange(index, 'calories', e.target.value)}
+                        style={macroNumberInputStyle}
+                      />
+                    </div>
+                    {/* Protein */}
+                    <div style={{ ...macroInputWrapperStyle, borderColor: 'var(--macro-protein)' }}>
+                      <label style={macroInputLabelStyle}>Proteína (g)</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={item.protein || ''}
+                        onChange={(e) => handleItemChange(index, 'protein', e.target.value)}
+                        style={macroNumberInputStyle}
+                      />
+                    </div>
+                    {/* Carbs */}
+                    <div style={{ ...macroInputWrapperStyle, borderColor: 'var(--macro-carbs)' }}>
+                      <label style={macroInputLabelStyle}>Hidratos (g)</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={item.carbs || ''}
+                        onChange={(e) => handleItemChange(index, 'carbs', e.target.value)}
+                        style={macroNumberInputStyle}
+                      />
+                    </div>
+                    {/* Fats */}
+                    <div style={{ ...macroInputWrapperStyle, borderColor: 'var(--macro-fats)' }}>
+                      <label style={macroInputLabelStyle}>Lípidos (g)</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={item.fats || ''}
+                        onChange={(e) => handleItemChange(index, 'fats', e.target.value)}
+                        style={macroNumberInputStyle}
+                      />
+                    </div>
                   </div>
 
-                  <div style={{ ...tableColStyle, flex: 1.1 }}>
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={item.protein || ''}
-                      onChange={(e) => handleItemChange(index, 'protein', e.target.value)}
-                      style={tableInputStyle}
-                    />
-                  </div>
-
-                  <div style={{ ...tableColStyle, flex: 1.1 }}>
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={item.carbs || ''}
-                      onChange={(e) => handleItemChange(index, 'carbs', e.target.value)}
-                      style={tableInputStyle}
-                    />
-                  </div>
-
-                  <div style={{ ...tableColStyle, flex: 1.1 }}>
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={item.fats || ''}
-                      onChange={(e) => handleItemChange(index, 'fats', e.target.value)}
-                      style={tableInputStyle}
-                    />
-                  </div>
-
-                  <button
-                    onClick={() => handleDeleteItem(index)}
-                    style={deleteRowButtonStyle}
-                  >
-                    <Trash2 size={16} />
-                  </button>
                 </div>
               ))
             )}
           </div>
 
           {/* Add item and total sum layout */}
-          <div style={tableActionsRowStyle}>
+          <div style={actionsRowStyle}>
             <button onClick={handleAddItem} style={addItemButtonStyle}>
               <Plus size={16} /> Adicionar Ingrediente
             </button>
@@ -276,10 +407,10 @@ export const MealReview: React.FC<MealReviewProps> = ({
       {/* Primary Confirm and Cancel Buttons */}
       <div style={buttonFooterStyle}>
         <button onClick={onCancel} style={cancelButtonStyle}>
-          <X size={18} /> Cancelar Registo
+          <X size={18} /> Descartar
         </button>
         <button onClick={handleConfirmSave} style={saveButtonStyle}>
-          <Check size={18} /> Confirmar e Gravar
+          <Check size={18} /> Gravar Refeição
         </button>
       </div>
     </div>
@@ -306,11 +437,11 @@ const reviewContentSplitStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'row',
   gap: '20px',
-  flexWrap: 'wrap', // wraps gracefully on mobile
+  flexWrap: 'wrap',
 };
 
 const sidebarStyle: React.CSSProperties = {
-  flex: '1 1 200px',
+  flex: '1 1 240px',
   display: 'flex',
   flexDirection: 'column',
   gap: '16px',
@@ -318,7 +449,7 @@ const sidebarStyle: React.CSSProperties = {
 
 const photoGridStyle: React.CSSProperties = {
   display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))',
+  gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
   gap: '8px',
 };
 
@@ -331,10 +462,10 @@ const photoPreviewStyle: React.CSSProperties = {
 };
 
 const mealTypeSelectorContainerStyle: React.CSSProperties = {
-  padding: '12px',
+  padding: '16px',
   display: 'flex',
   flexDirection: 'column',
-  gap: '8px',
+  gap: '10px',
 };
 
 const labelStyle: React.CSSProperties = {
@@ -352,10 +483,10 @@ const mealTypeGridStyle: React.CSSProperties = {
 };
 
 const mealTypeButtonStyle: React.CSSProperties = {
-  padding: '8px 4px',
-  borderRadius: '8px',
+  padding: '10px 4px',
+  borderRadius: '10px',
   border: '1px solid var(--border-glass)',
-  background: 'none',
+  background: 'rgba(255,255,255,0.01)',
   fontSize: '0.8rem',
   fontWeight: 500,
   cursor: 'pointer',
@@ -369,70 +500,165 @@ const activeMealTypeButtonStyle: React.CSSProperties = {
   color: '#fff',
   border: 'none',
   fontWeight: 600,
-  boxShadow: '0 4px 10px rgba(16, 185, 129, 0.2)',
+  boxShadow: '0 4px 10px rgba(16, 185, 129, 0.25)',
 };
 
-const tableContainerStyle: React.CSSProperties = {
-  flex: '3 1 450px',
+const cardsContainerStyle: React.CSSProperties = {
+  flex: '3 1 500px',
   display: 'flex',
   flexDirection: 'column',
-  gap: '10px',
+  gap: '16px',
 };
 
-const tableHeaderRowStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  padding: '8px 12px',
-  color: 'var(--color-text-secondary)',
-  fontSize: '0.8rem',
-  fontWeight: 600,
-  textTransform: 'uppercase',
-  letterSpacing: '0.05em',
-};
-
-const tableColStyle: React.CSSProperties = {
-  padding: '0 4px',
-  display: 'flex',
-  alignItems: 'center',
-};
-
-const tableBodyStyle: React.CSSProperties = {
+const cardsBodyStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
-  gap: '8px',
-  maxHeight: '320px',
+  gap: '14px',
+  maxHeight: '480px',
   overflowY: 'auto',
-  paddingRight: '4px',
+  paddingRight: '6px',
 };
 
-const tableRowStyle: React.CSSProperties = {
+const ingredientCardStyle: React.CSSProperties = {
+  padding: '16px',
   display: 'flex',
-  alignItems: 'center',
-  padding: '10px 12px',
+  flexDirection: 'column',
+  gap: '12px',
 };
 
-const tableInputStyle: React.CSSProperties = {
-  width: '100%',
+const cardHeaderRowStyle: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  gap: '12px',
+};
+
+const cardTitleInputStyle: React.CSSProperties = {
+  flex: 1,
   background: 'none',
   border: 'none',
-  borderBottom: '1px solid transparent',
-  padding: '4px 2px',
-  fontSize: '0.9rem',
+  borderBottom: '1px solid var(--border-glass)',
+  fontSize: '1.05rem',
+  fontWeight: 600,
   outline: 'none',
-  transition: 'border-color 0.2s',
-  fontWeight: 500,
-  color: 'var(--color-text-primary)',
+  padding: '4px 0',
+  color: '#fff',
 };
 
-const deleteRowButtonStyle: React.CSSProperties = {
+const deleteCardButtonStyle: React.CSSProperties = {
   background: 'none',
   border: 'none',
   color: 'var(--color-text-muted)',
   cursor: 'pointer',
-  padding: '4px',
-  marginLeft: '8px',
-  flexShrink: 0,
-  transition: 'color 0.2s',
+  padding: '6px',
+  borderRadius: '8px',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  transition: 'all 0.2s',
+};
+
+const portionControlContainerStyle: React.CSSProperties = {
+  padding: '8px 12px',
+  backgroundColor: 'rgba(0, 0, 0, 0.15)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: '12px',
+  flexWrap: 'wrap',
+};
+
+const portionLabelStyle: React.CSSProperties = {
+  fontSize: '0.8rem',
+  fontWeight: 600,
+  color: 'var(--color-text-secondary)',
+  textTransform: 'uppercase',
+  letterSpacing: '0.05em',
+};
+
+const sliderRowStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '10px',
+  flex: 1,
+  justifyContent: 'flex-end',
+  minWidth: '220px',
+};
+
+const stepButtonStyle: React.CSSProperties = {
+  width: '26px',
+  height: '26px',
+  borderRadius: '50%',
+  border: '1px solid var(--border-glass)',
+  background: 'rgba(255,255,255,0.03)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  color: 'var(--color-text-secondary)',
+  cursor: 'pointer',
+  transition: 'all 0.2s',
+};
+
+const sliderStyle: React.CSSProperties = {
+  flex: 1,
+  accentColor: 'var(--macro-calories)',
+  cursor: 'pointer',
+  height: '6px',
+};
+
+const weightDisplayContainerStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '4px',
+  backgroundColor: 'var(--bg-input)',
+  border: '1px solid var(--border-glass)',
+  borderRadius: '8px',
+  padding: '4px 8px',
+  width: '75px',
+};
+
+const weightNumberInputStyle: React.CSSProperties = {
+  width: '100%',
+  background: 'none',
+  border: 'none',
+  outline: 'none',
+  textAlign: 'right',
+  fontSize: '0.9rem',
+  fontWeight: 700,
+  color: '#fff',
+  appearance: 'none',
+};
+
+const cardMacrosGridStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(4, 1fr)',
+  gap: '10px',
+};
+
+const macroInputWrapperStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '4px',
+  borderLeft: '3px solid transparent',
+  paddingLeft: '8px',
+};
+
+const macroInputLabelStyle: React.CSSProperties = {
+  fontSize: '0.75rem',
+  color: 'var(--color-text-secondary)',
+  fontWeight: 500,
+};
+
+const macroNumberInputStyle: React.CSSProperties = {
+  width: '100%',
+  backgroundColor: 'var(--bg-input)',
+  border: '1px solid var(--border-glass)',
+  borderRadius: '8px',
+  padding: '6px 8px',
+  fontSize: '0.85rem',
+  fontWeight: 600,
+  outline: 'none',
+  color: '#fff',
 };
 
 const emptyStateStyle: React.CSSProperties = {
@@ -440,43 +666,44 @@ const emptyStateStyle: React.CSSProperties = {
   flexDirection: 'column',
   alignItems: 'center',
   justifyContent: 'center',
-  padding: '30px',
-  gap: '8px',
+  padding: '50px 20px',
+  gap: '12px',
+  textAlign: 'center',
 };
 
-const tableActionsRowStyle: React.CSSProperties = {
+const actionsRowStyle: React.CSSProperties = {
   display: 'flex',
   justifyContent: 'space-between',
   alignItems: 'center',
   marginTop: '10px',
   flexWrap: 'wrap',
-  gap: '12px',
+  gap: '16px',
 };
 
 const addItemButtonStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: '6px',
-  padding: '8px 14px',
-  borderRadius: '10px',
+  padding: '10px 16px',
+  borderRadius: '12px',
   border: '1px dashed var(--border-glass)',
   background: 'none',
   color: 'var(--color-text-secondary)',
-  fontSize: '0.85rem',
+  fontSize: '0.9rem',
   fontWeight: 500,
   cursor: 'pointer',
   transition: 'all 0.2s',
 };
 
 const totalsCardStyle: React.CSSProperties = {
-  padding: '10px 16px',
+  padding: '12px 18px',
   display: 'flex',
   alignItems: 'center',
   gap: '16px',
 };
 
 const totalLabelStyle: React.CSSProperties = {
-  fontSize: '0.75rem',
+  fontSize: '0.8rem',
   fontWeight: 700,
   color: 'var(--color-text-secondary)',
   letterSpacing: '0.05em',
@@ -491,11 +718,11 @@ const totalItemStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
-  minWidth: '36px',
+  minWidth: '40px',
 };
 
 const totalNumStyle: React.CSSProperties = {
-  fontSize: '1rem',
+  fontSize: '1.05rem',
   fontWeight: 700,
 };
 
@@ -512,8 +739,8 @@ const cancelButtonStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: '8px',
-  padding: '10px 18px',
-  borderRadius: '10px',
+  padding: '10px 20px',
+  borderRadius: '12px',
   border: '1px solid var(--border-glass)',
   background: 'none',
   fontWeight: 500,
@@ -526,8 +753,8 @@ const saveButtonStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: '8px',
-  padding: '10px 22px',
-  borderRadius: '10px',
+  padding: '10px 24px',
+  borderRadius: '12px',
   border: 'none',
   background: 'var(--grad-calories)',
   color: '#fff',

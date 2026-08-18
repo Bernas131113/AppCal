@@ -114,6 +114,7 @@ function App() {
                 apiKey={settings.geminiApiKey}
                 model={settings.model}
                 onAnalysisComplete={handleAnalysisComplete}
+                onInstantLog={handleSaveMeal}
               />
             </section>
 
