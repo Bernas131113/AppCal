@@ -46,6 +46,10 @@ export const getSettings = (): AppSettings => {
     if (!data) return DEFAULT_SETTINGS;
     
     const parsed = JSON.parse(data);
+    if (parsed.model === 'gemini-2.5-pro') {
+      parsed.model = 'gemini-1.5-flash';
+    }
+    
     // Merge defaults to handle schema updates smoothly
     return {
       ...DEFAULT_SETTINGS,

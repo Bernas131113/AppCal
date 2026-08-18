@@ -150,7 +150,10 @@ export const analyzeMealWithGemini = async (
     });
   }
 
-  const model = modelName || 'gemini-2.5-flash';
+  let model = modelName || 'gemini-1.5-flash';
+  if (model === 'gemini-2.5-pro') {
+    model = 'gemini-1.5-flash';
+  }
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
   // Assemble system instructions and core prompt
