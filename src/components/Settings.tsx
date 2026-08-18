@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import type { AppSettings, UserProfile } from '../types';
 import { getSettings, saveSettings } from '../utils/storage';
 import { resetSupabaseClient } from '../utils/supabase';
-import { Settings as SettingsIcon, Key, Target, Eye, EyeOff, Save, CheckCircle, User, PieChart, Sparkles, Scale, Info, Database } from 'lucide-react';
+import { Settings as SettingsIcon, Target, Save, CheckCircle, User, PieChart, Sparkles, Scale, Info } from 'lucide-react';
 
 interface SettingsProps {
   onSettingsSaved: (settings: AppSettings) => void;
@@ -11,8 +11,7 @@ interface SettingsProps {
 
 export const Settings: React.FC<SettingsProps> = ({ onSettingsSaved, onClose }) => {
   const [settings, setSettings] = useState<AppSettings>(getSettings());
-  const [activeTab, setActiveTab] = useState<'api' | 'profile' | 'macros'>('api');
-  const [showApiKey, setShowApiKey] = useState(false);
+  const [activeTab, setActiveTab] = useState<'profile' | 'macros'>('profile');
   const [savedSuccess, setSavedSuccess] = useState(false);
 
   // Mifflin-St Jeor TDEE & Macro calculator
@@ -192,14 +191,6 @@ export const Settings: React.FC<SettingsProps> = ({ onSettingsSaved, onClose }) 
         {/* Tab Controls */}
         <div style={tabContainerStyle}>
           <button
-            onClick={() => setActiveTab('api')}
-            style={{ ...tabButtonStyle, ...(activeTab === 'api' ? activeTabButtonStyle : {}) }}
-          >
-            <Key size={16} />
-            <span>IA & API</span>
-          </button>
-          
-          <button
             onClick={() => setActiveTab('profile')}
             style={{ ...tabButtonStyle, ...(activeTab === 'profile' ? activeTabButtonStyle : {}) }}
           >
@@ -221,101 +212,6 @@ export const Settings: React.FC<SettingsProps> = ({ onSettingsSaved, onClose }) 
           
           <div style={scrollContentStyle} className="hide-scrollbar">
             
-            {/* TAB 1: API Config */}
-            {activeTab === 'api' && (
-              <div className="glass-card" style={sectionStyle}>
-                <div style={sectionTitleStyle}>
-                  <Key size={18} style={{ color: 'var(--macro-calories)' }} />
-                  <h3>Configuração da IA (Gemini API)</h3>
-                </div>
-                
-                <p style={helpTextStyle}>
-                  O motor central de visão do AppCal usa a API do Google Gemini. Obtenha uma chave API gratuita no{' '}
-                  <a href="https://aistudio.google.com/" target="_blank" rel="noreferrer" style={linkStyle}>
-                    Google AI Studio
-                  </a>. Caso contrário, a app funcionará em <strong>Modo Demo</strong> com dados locais simulados.
-                </p>
-
-                <div style={inputGroupStyle}>
-                  <label style={labelStyle}>Gemini API Key</label>
-                  <div style={passwordInputContainerStyle}>
-                    <input
-                      type={showApiKey ? 'text' : 'password'}
-                      value={settings.geminiApiKey}
-                      onChange={(e) => setSettings({ ...settings, geminiApiKey: e.target.value })}
-                      placeholder="Cole a sua API Key AI Studio..."
-                      style={inputStyle}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowApiKey(!showApiKey)}
-                      style={eyeButtonStyle}
-                    >
-                      {showApiKey ? <EyeOff size={18} /> : <Eye size={18} />}
-                    </button>
-                  </div>
-                </div>
-
-                <div style={inputGroupStyle}>
-                  <label style={labelStyle}>Modelo de Inteligência Artificial</label>
-                  <select
-                    value={settings.model}
-                    onChange={(e) => setSettings({ ...settings, model: e.target.value })}
-                    style={selectStyle}
-                  >
-                    <option value="gemini-2.5-flash">Gemini 2.5 Flash (Recomendado - Ultra rápido)</option>
-                    <option value="gemini-1.5-flash">Gemini 1.5 Flash (Rápido)</option>
-                    <option value="gemini-2.5-pro">Gemini 2.5 Pro (Mais preciso e detalhado)</option>
-                  </select>
-                </div>
-
-                {/* Cloud Sync Database (Supabase) section */}
-                <div style={{ borderTop: '1px solid var(--border-glass)', paddingTop: '16px', marginTop: '16px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                    <div style={sectionTitleStyle}>
-                      <Database size={18} style={{ color: 'var(--macro-carbs)' }} />
-                      <h3>Base de Dados Cloud (Supabase)</h3>
-                    </div>
-                    <label style={toggleSwitchStyle}>
-                      <input
-                        type="checkbox"
-                        checked={settings.useSupabase}
-                        onChange={(e) => setSettings({ ...settings, useSupabase: e.target.checked })}
-                        style={checkboxInputStyle}
-                      />
-                      <span style={toggleSliderStyle(settings.useSupabase)}>
-                        <div style={toggleKnobStyle(settings.useSupabase)} />
-                      </span>
-                    </label>
-                  </div>
-
-                  {settings.useSupabase && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                      <div style={inputGroupStyle}>
-                        <label style={labelStyle}>Supabase URL</label>
-                        <input
-                          type="text"
-                          value={settings.supabaseUrl}
-                          onChange={(e) => setSettings({ ...settings, supabaseUrl: e.target.value })}
-                          placeholder="https://xxxxxx.supabase.co"
-                          style={inputStyle}
-                        />
-                      </div>
-                      <div style={inputGroupStyle}>
-                        <label style={labelStyle}>Supabase Anon Key</label>
-                        <input
-                          type="password"
-                          value={settings.supabaseAnonKey}
-                          onChange={(e) => setSettings({ ...settings, supabaseAnonKey: e.target.value })}
-                          placeholder="Cole a sua Anon Key do Supabase..."
-                          style={inputStyle}
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
 
             {/* TAB 2: Profile & Metabolism */}
             {activeTab === 'profile' && (
@@ -813,10 +709,6 @@ const helpTextStyle: React.CSSProperties = {
   lineHeight: 1.4,
 };
 
-const linkStyle: React.CSSProperties = {
-  color: 'var(--macro-calories)',
-  textDecoration: 'underline',
-};
 
 const inputGroupStyle: React.CSSProperties = {
   display: 'flex',
@@ -830,11 +722,6 @@ const labelStyle: React.CSSProperties = {
   color: 'var(--color-text-secondary)',
 };
 
-const passwordInputContainerStyle: React.CSSProperties = {
-  position: 'relative',
-  display: 'flex',
-  alignItems: 'center',
-};
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
@@ -847,17 +734,6 @@ const inputStyle: React.CSSProperties = {
   transition: 'border-color 0.2s',
 };
 
-const eyeButtonStyle: React.CSSProperties = {
-  position: 'absolute',
-  right: '12px',
-  background: 'none',
-  border: 'none',
-  color: 'var(--color-text-secondary)',
-  cursor: 'pointer',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-};
 
 const selectStyle: React.CSSProperties = {
   width: '100%',

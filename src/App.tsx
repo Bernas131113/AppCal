@@ -8,7 +8,7 @@ import { Dashboard } from './components/Dashboard';
 import { ProgressTracker } from './components/ProgressTracker';
 import { Settings } from './components/Settings';
 import { Auth } from './components/Auth';
-import { Settings as SettingsIcon, Cpu, Sparkles, LogOut, Calendar, TrendingUp, User } from 'lucide-react';
+import { Settings as SettingsIcon, Sparkles, LogOut, Calendar, TrendingUp, User } from 'lucide-react';
 import './App.css';
 
 function App() {
@@ -125,18 +125,6 @@ function App() {
             <span style={userEmailStyle}>{currentUser.email}</span>
           </div>
 
-          {/* API Status Badge */}
-          {settings.geminiApiKey ? (
-            <div style={apiBadgeActiveStyle}>
-              <Cpu size={14} />
-              <span className="desktop-only">Gemini Ativo</span>
-            </div>
-          ) : (
-            <div style={apiBadgeDemoStyle} onClick={() => setShowSettings(true)}>
-              <Cpu size={14} />
-              <span className="desktop-only">Demo</span>
-            </div>
-          )}
 
           {/* Settings gear */}
           <button
@@ -324,26 +312,7 @@ const userEmailStyle: React.CSSProperties = {
   whiteSpace: 'nowrap',
 };
 
-const apiBadgeActiveStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: '4px',
-  padding: '6px 10px',
-  borderRadius: '12px',
-  fontSize: '0.75rem',
-  fontWeight: 600,
-  backgroundColor: 'rgba(16, 185, 129, 0.1)',
-  color: '#34d399',
-  border: '1px solid rgba(16, 185, 129, 0.2)',
-};
 
-const apiBadgeDemoStyle: React.CSSProperties = {
-  ...apiBadgeActiveStyle,
-  backgroundColor: 'rgba(245, 158, 11, 0.1)',
-  color: '#fbbf24',
-  border: '1px solid rgba(245, 158, 11, 0.2)',
-  cursor: 'pointer',
-};
 
 const headerIconButtonStyle: React.CSSProperties = {
   width: '32px',
