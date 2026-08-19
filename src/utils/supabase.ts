@@ -293,7 +293,8 @@ export const fetchMeals = async (): Promise<Meal[]> => {
           )
         `)
         .eq('user_id', ctx.userId)
-        .order('logged_at', { ascending: false });
+        .order('logged_at', { ascending: false })
+        .limit(60);
 
       if (error) throw error;
       
@@ -681,4 +682,114 @@ export const deleteFavoriteDb = async (id: string): Promise<void> => {
   const allFavorites = JSON.parse(localStorage.getItem('appcal_favorites') || '[]');
   const updated = allFavorites.filter((f: any) => f.id !== id);
   localStorage.setItem('appcal_favorites', JSON.stringify(updated));
+};
+
+export const syncOfflineData = async (): Promise<void> => {
+  const user = getLoggedInUser();
+  if (!user) return;
+
+  const ctx = getSupabaseContext();
+  if (!ctx) return;
+
+  try {
+    console.log('Iniciando sincronização offline...');
+
+    // 1. Sync local profile settings
+    const localSettings = JSON.parse(localStorage.getItem('appcal_settings') || 'null');
+    if (localSettings) {
+      await ctx.client
+        .from('profiles')
+        .upsert({
+          id: ctx.userId,
+          settings: localSettings,
+          updated_at: new Date().toISOString()
+        });
+    }
+
+    // 2. Sync local weight logs
+    const localLogs = JSON.parse(localStorage.getItem('appcal_weight_logs') || '[]');
+    const userLogs = localLogs.filter((l: any) => l.user_id === user.id);
+    for (const log of userLogs) {
+      const { data: existing } = await ctx.client
+        .from('weight_logs')
+        .select('id')
+        .eq('user_id', ctx.userId)
+        .eq('date', log.date)
+        .maybeSingle();
+
+      if (existing) {
+        await ctx.client
+          .from('weight_logs')
+          .update({ weight_kg: log.weight_kg })
+          .eq('id', existing.id);
+      } else {
+        await ctx.client
+          .from('weight_logs')
+          .insert({
+            user_id: ctx.userId,
+            date: log.date,
+            weight_kg: log.weight_kg
+          });
+      }
+    }
+
+    // 3. Sync local meals
+    const localMeals = JSON.parse(localStorage.getItem('appcal_meals_v2') || '[]');
+    const userMeals = localMeals.filter((m: any) => m.user_id === user.id);
+    for (const meal of userMeals) {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(meal.id);
+      const { data: mealData, error: mealError } = await ctx.client
+        .from('meals')
+        .upsert({
+          id: isUuid ? meal.id : undefined,
+          user_id: ctx.userId,
+          meal_type: meal.meal_type,
+          logged_at: meal.timestamp,
+          photos: meal.photos,
+          total_calories: meal.total_calories,
+          total_protein: meal.total_protein,
+          total_carbs: meal.total_carbs,
+          total_fats: meal.total_fats,
+          notes: meal.notes,
+        }, { onConflict: 'id' })
+        .select()
+        .single();
+
+      if (!mealError && mealData) {
+        await ctx.client.from('meal_items').delete().eq('meal_id', mealData.id);
+        const itemsToInsert = meal.items.map((item: any) => ({
+          meal_id: mealData.id,
+          name: item.name,
+          weight_g: item.weight_g,
+          calories: item.calories,
+          protein: item.protein,
+          carbs: item.carbs,
+          fats: item.fats,
+        }));
+        await ctx.client.from('meal_items').insert(itemsToInsert);
+      }
+    }
+
+    // 4. Sync local favorites
+    const localFavs = JSON.parse(localStorage.getItem('appcal_favorites') || '[]');
+    for (const fav of localFavs) {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(fav.id);
+      await ctx.client
+        .from('favorites')
+        .upsert({
+          id: isUuid ? fav.id : undefined,
+          user_id: ctx.userId,
+          name: fav.name,
+          items: fav.items,
+          total_calories: fav.total_calories,
+          total_protein: fav.total_protein,
+          total_carbs: fav.total_carbs,
+          total_fats: fav.total_fats,
+        }, { onConflict: 'id' });
+    }
+
+    console.log('Sincronização offline concluída com sucesso!');
+  } catch (e) {
+    console.error('Erro durante a sincronização offline:', e);
+  }
 };

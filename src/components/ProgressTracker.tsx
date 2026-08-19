@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { WeightLog, UserGoals, Meal } from '../types';
 import { fetchWeightLogs, insertWeightLog, deleteWeightLogDb } from '../utils/supabase';
+import { useAppStore } from '../store/useAppStore';
 import { Scale, Plus, Trash2, Calendar, TrendingUp, Award, Activity } from 'lucide-react';
 import { formatDateLabel, isSameDay } from '../utils/helpers';
 import { useTranslation } from '../utils/i18n';
@@ -14,6 +15,7 @@ interface ProgressTrackerProps {
 
 export const ProgressTracker: React.FC<ProgressTrackerProps> = ({ goals, meals, confirmAction, showToast }) => {
   const { t } = useTranslation();
+  const currentUser = useAppStore((state) => state.currentUser);
   const [weightLogs, setWeightLogs] = useState<WeightLog[]>([]);
   const [weightInput, setWeightInput] = useState('');
   const [dateInput, setDateInput] = useState(new Date().toISOString().split('T')[0]);
@@ -32,21 +34,47 @@ export const ProgressTracker: React.FC<ProgressTrackerProps> = ({ goals, meals, 
     e.preventDefault();
     const weightNum = parseFloat(weightInput);
     if (isNaN(weightNum) || weightNum <= 0) return;
-    setIsLoading(true);
-    const updated = await insertWeightLog(dateInput, weightNum);
+
+    const tempId = Math.random().toString(36).substring(2, 9) + '-' + Date.now().toString();
+    const newLog: WeightLog = {
+      id: tempId,
+      user_id: currentUser?.id || 'temp',
+      date: dateInput,
+      weight_kg: weightNum,
+    };
+
+    const prevLogs = weightLogs;
+    // Insert and sort
+    const updated = [...weightLogs.filter(l => l.date !== dateInput), newLog].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     setWeightLogs(updated);
     setWeightInput('');
-    setIsLoading(false);
     if (showToast) showToast(t('progress_success_weight'), 'success');
+
+    try {
+      const dbUpdated = await insertWeightLog(dateInput, weightNum);
+      setWeightLogs(dbUpdated);
+    } catch (e) {
+      console.error(e);
+      setWeightLogs(prevLogs);
+      if (showToast) showToast('Falha ao guardar peso no servidor.', 'error');
+    }
   };
 
   const handleDeleteLog = async (id: string) => {
     const deleteOp = async () => {
-      setIsLoading(true);
-      const updated = await deleteWeightLogDb(id);
+      const prevLogs = weightLogs;
+      const updated = weightLogs.filter((l) => l.id !== id);
       setWeightLogs(updated);
-      setIsLoading(false);
       if (showToast) showToast(t('dash_meal_deleted'), 'success');
+
+      try {
+        const dbUpdated = await deleteWeightLogDb(id);
+        setWeightLogs(dbUpdated);
+      } catch (e) {
+        console.error(e);
+        setWeightLogs(prevLogs);
+        if (showToast) showToast('Falha ao apagar registo de peso no servidor.', 'error');
+      }
     };
     if (confirmAction) {
       confirmAction(t('dash_confirm_delete'), t('dash_confirm_delete'), deleteOp);

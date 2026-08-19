@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAppStore } from './store/useAppStore';
-import { getLoggedInUser, dbSignOut, deleteMealDb, insertMeal, getSupabaseClient, fetchFavorites } from './utils/supabase';
+import { getLoggedInUser, dbSignOut, deleteMealDb, insertMeal, getSupabaseClient, fetchFavorites, syncOfflineData } from './utils/supabase';
 import { MealLogger } from './components/MealLogger';
 import { MealReview } from './components/MealReview';
 import { Dashboard } from './components/Dashboard';
@@ -36,6 +36,7 @@ function App() {
     settings,
     saveSettingsCloud,
     meals,
+    setMeals,
     loadMeals,
     activeTab,
     setActiveTab,
@@ -132,10 +133,25 @@ function App() {
         if (favs) {
           saveFavorites(favs);
         }
+        // Sync any offline modifications
+        await syncOfflineData();
       }
       setIsInitializing(false);
     };
     initSession();
+
+    // Online event handler for background sync
+    const handleOnline = async () => {
+      showToast('Ligado à internet. A sincronizar dados...', 'info');
+      await syncOfflineData();
+      await Promise.all([syncSettingsFromCloud(), loadMeals(), fetchFavorites()]);
+      showToast('Dados sincronizados com o servidor!', 'success');
+    };
+    window.addEventListener('online', handleOnline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+    };
   }, []);
 
   const handleAuthSuccess = async (user: { id: string; email: string }) => {
@@ -169,10 +185,18 @@ function App() {
   };
 
   const handleSaveMeal = async (newMeal: any) => {
-    await insertMeal(newMeal);
-    await loadMeals();
+    const prevMeals = meals;
+    setMeals([newMeal, ...meals]);
     setPendingAnalysis(null);
     showToast(t('dash_meal_saved'), 'success');
+    
+    try {
+      await insertMeal(newMeal);
+    } catch (e) {
+      console.error(e);
+      setMeals(prevMeals);
+      showToast('Falha ao guardar refeição no servidor.', 'error');
+    }
   };
 
   const handleSaveEditedMeal = async (updatedMeal: any) => {
@@ -182,17 +206,34 @@ function App() {
       id: editingMeal.id,
       timestamp: editingMeal.timestamp
     };
-    await insertMeal(mealToSave);
-    await loadMeals();
+    
+    const prevMeals = meals;
+    setMeals(meals.map(m => m.id === editingMeal.id ? mealToSave : m));
     setEditingMeal(null);
     showToast(t('dash_meal_saved'), 'success');
+
+    try {
+      await insertMeal(mealToSave);
+    } catch (e) {
+      console.error(e);
+      setMeals(prevMeals);
+      showToast('Falha ao atualizar refeição no servidor.', 'error');
+    }
   };
 
   const handleDeleteMeal = (id: string) => {
     confirmAction(t('dash_confirm_delete'), t('dash_confirm_delete'), async () => {
-      await deleteMealDb(id);
-      await loadMeals();
+      const prevMeals = meals;
+      setMeals(meals.filter(m => m.id !== id));
       showToast(t('dash_meal_deleted'), 'success');
+
+      try {
+        await deleteMealDb(id);
+      } catch (e) {
+        console.error(e);
+        setMeals(prevMeals);
+        showToast('Falha ao apagar refeição no servidor.', 'error');
+      }
     });
   };
 
