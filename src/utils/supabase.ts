@@ -470,12 +470,33 @@ export const insertWeightLog = async (date: string, weightKg: number): Promise<W
   const ctx = getSupabaseContext();
   if (ctx) {
     try {
-      const { error } = await ctx.client.from('weight_logs').upsert({
-        user_id: ctx.userId,
-        date,
-        weight_kg: weightKg,
-      }, { onConflict: 'user_id,date' });
-      if (error) throw error;
+      // Check if weight log already exists for this date and user
+      const { data: existing, error: findError } = await ctx.client
+        .from('weight_logs')
+        .select('id')
+        .eq('user_id', ctx.userId)
+        .eq('date', date)
+        .maybeSingle();
+
+      if (findError) throw findError;
+
+      if (existing) {
+        const { error: updateError } = await ctx.client
+          .from('weight_logs')
+          .update({ weight_kg: weightKg })
+          .eq('id', existing.id);
+        if (updateError) throw updateError;
+      } else {
+        const { error: insertError } = await ctx.client
+          .from('weight_logs')
+          .insert({
+            user_id: ctx.userId,
+            date,
+            weight_kg: weightKg,
+          });
+        if (insertError) throw insertError;
+      }
+
       return fetchWeightLogs();
     } catch (e) {
       console.error('Erro ao guardar peso no Supabase.', e);
