@@ -294,7 +294,7 @@ export const analyzeMealWithGemini = async (
 
     if (!response.ok) {
       if (response.status === 429) {
-        throw new Error('A quota gratuita da API do Gemini foi excedida. Por favor, aguarde 1 minuto para tentar novamente ou insira a sua própria API Key nas definições do perfil.');
+        throw new Error('A quota de utilização do Gemini foi excedida. Por favor, aguarde 1 minuto para tentar novamente.');
       }
       const errorText = await response.text();
       throw new Error(`Erro na API (${response.status}): ${errorText}`);
