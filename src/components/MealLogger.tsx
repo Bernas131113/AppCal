@@ -237,6 +237,9 @@ export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysi
         });
 
         if (!geminiResponse.ok) {
+          if (geminiResponse.status === 429) {
+            throw new Error('A quota gratuita da API do Gemini foi excedida. Por favor, aguarde 1 minuto para tentar novamente.');
+          }
           throw new Error('Falha no fallback de IA.');
         }
 
