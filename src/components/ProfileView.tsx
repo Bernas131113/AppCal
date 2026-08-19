@@ -228,14 +228,14 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
   const getMealTypeLabel = (type: string) => {
     const labels: Record<string, string> = {
-      breakfast: 'Pequeno-almoço',
-      lunch: 'Almoço',
-      dinner: 'Jantar',
-      snack: 'Lanche',
-      supper: 'Ceia',
-      extrasnack: 'Extra'
+      breakfast: t('meal_breakfast'),
+      lunch: t('meal_lunch'),
+      dinner: t('meal_dinner'),
+      snack: t('meal_snack'),
+      supper: t('meal_supper'),
+      extrasnack: t('meal_extrasnack')
     };
-    return labels[type] || 'Refeição';
+    return labels[type] || (t('diary') === 'Diário' ? 'Refeição' : 'Meal');
   };
 
   return (
@@ -244,11 +244,11 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       {/* Category Tabs */}
       <div style={categoryTabsContainerStyle} className="hide-scrollbar">
         {[
-          { id: 'all', label: 'Tudo' },
-          { id: 'personal', label: 'Metabolismo' },
-          { id: 'macros', label: 'Metas' },
-          { id: 'gallery', label: 'Galeria (' + allPhotos.length + ')' },
-          { id: 'security', label: 'Conta' }
+          { id: 'all', label: t('profile_cat_all') },
+          { id: 'personal', label: t('profile_cat_metabolismo') },
+          { id: 'macros', label: t('profile_cat_metas') },
+          { id: 'gallery', label: t('profile_cat_galeria') + ' (' + allPhotos.length + ')' },
+          { id: 'security', label: t('profile_cat_conta') }
         ].map(cat => (
           <button
             key={cat.id}
@@ -271,14 +271,14 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           <div className="glass-card" style={sectionCardStyle}>
             <div style={sectionHeaderStyle}>
               <User size={20} style={{ color: 'var(--macro-calories)' }} />
-              <h3 style={sectionTitleStyle}>Dados e Metabolismo</h3>
+              <h3 style={sectionTitleStyle}>{t('profile_title_metabolismo')}</h3>
             </div>
             
             <div style={formGroupStyle}>
               <div style={toggleRowStyle}>
                 <div>
-                  <span style={labelStyle}>TDEE Automático (Mifflin-St Jeor)</span>
-                  <p style={helpTextStyle}>Calcula as metas com base no metabolismo.</p>
+                  <span style={labelStyle}>{t('profile_label_tdee_auto')}</span>
+                  <p style={helpTextStyle}>{t('profile_desc_tdee_auto')}</p>
                 </div>
                 <label style={toggleSwitchStyle}>
                   <input
@@ -297,7 +297,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             {settings.profile.hasProfile && (
               <div style={gridFieldsStyle}>
                 <div style={inputGroupStyle}>
-                  <label style={inputLabelStyle}>Idade (anos)</label>
+                  <label style={inputLabelStyle}>{t('profile_label_age_years')}</label>
                   <input
                     type="number"
                     value={settings.profile.age || ''}
@@ -307,19 +307,19 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 </div>
                 
                 <div style={inputGroupStyle}>
-                  <label style={inputLabelStyle}>Sexo</label>
+                  <label style={inputLabelStyle}>{t('profile_label_gender_sel')}</label>
                   <select
                     value={settings.profile.gender}
                     onChange={(e) => handleProfileChange('gender', e.target.value as 'male' | 'female')}
                     style={inputFieldStyle}
                   >
-                    <option value="male">Masculino</option>
-                    <option value="female">Feminino</option>
+                    <option value="male">{t('profile_gender_male')}</option>
+                    <option value="female">{t('profile_gender_female')}</option>
                   </select>
                 </div>
 
                 <div style={inputGroupStyle}>
-                  <label style={inputLabelStyle}>Peso (kg)</label>
+                  <label style={inputLabelStyle}>{t('progress_col_weight')} (kg)</label>
                   <input
                     type="number"
                     step="0.1"
@@ -330,7 +330,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 </div>
 
                 <div style={inputGroupStyle}>
-                  <label style={inputLabelStyle}>Altura (cm)</label>
+                  <label style={inputLabelStyle}>{t('profile_label_height')}</label>
                   <input
                     type="number"
                     value={settings.profile.height || ''}
@@ -340,36 +340,36 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 </div>
 
                 <div style={{ ...inputGroupStyle, gridColumn: '1 / -1' }}>
-                  <label style={inputLabelStyle}>Nível de Atividade</label>
+                  <label style={inputLabelStyle}>{t('profile_label_activity_sel')}</label>
                   <select
                     value={settings.profile.activityLevel}
                     onChange={(e) => handleProfileChange('activityLevel', parseFloat(e.target.value) || 1.2)}
                     style={inputFieldStyle}
                   >
-                    <option value="1.2">Sedentário (Sem exercício)</option>
-                    <option value="1.375">Leve (Exercício 1-3 dias/semana)</option>
-                    <option value="1.55">Moderado (Exercício 3-5 dias/semana)</option>
-                    <option value="1.725">Intenso (Exercício 6-7 dias/semana)</option>
-                    <option value="1.9">Extremo (Treino diário pesado)</option>
+                    <option value="1.2">{t('profile_activity_sedentary_desc')}</option>
+                    <option value="1.375">{t('profile_activity_light_desc')}</option>
+                    <option value="1.55">{t('profile_activity_moderate_desc')}</option>
+                    <option value="1.725">{t('profile_activity_active_desc')}</option>
+                    <option value="1.9">{t('profile_activity_extreme_desc')}</option>
                   </select>
                 </div>
 
                 <div style={{ ...inputGroupStyle, gridColumn: '1 / -1' }}>
-                  <label style={inputLabelStyle}>Objetivo</label>
+                  <label style={inputLabelStyle}>{t('profile_label_goal_sel')}</label>
                   <select
                     value={settings.profile.goalType}
                     onChange={(e) => handleProfileChange('goalType', e.target.value as 'loss' | 'maintenance' | 'gain')}
                     style={inputFieldStyle}
                   >
-                    <option value="loss">Perda de Peso (Défice)</option>
-                    <option value="maintenance">Manutenção de Peso</option>
-                    <option value="gain">Ganho de Peso (Superavit)</option>
+                    <option value="loss">{t('profile_goal_loss_desc')}</option>
+                    <option value="maintenance">{t('profile_goal_maintenance_desc')}</option>
+                    <option value="gain">{t('profile_goal_gain_desc')}</option>
                   </select>
                 </div>
 
                 {settings.profile.goalType !== 'maintenance' && (
                   <div style={{ ...inputGroupStyle, gridColumn: '1 / -1' }}>
-                    <label style={inputLabelStyle}>Ajuste Calórico (kcal): {settings.profile.calorieAdjustment} kcal</label>
+                    <label style={inputLabelStyle}>{t('profile_label_cal_adj')}: {settings.profile.calorieAdjustment} kcal</label>
                     <input
                       type="range"
                       min="100"
@@ -383,12 +383,12 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 )}
 
                 <div style={calcSummaryCardStyle}>
-                  <h4 style={{ margin: 0, fontSize: '0.85rem', color: 'var(--macro-calories)', fontWeight: 700 }}>Estimativa Científica:</h4>
+                  <h4 style={{ margin: 0, fontSize: '0.85rem', color: 'var(--macro-calories)', fontWeight: 700 }}>{t('profile_calc_title')}</h4>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '8px', fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
-                    <span>Metabolismo Basal (BMR): <strong>{calcResults.bmr} kcal</strong></span>
-                    <span>Gasto Energético (TDEE): <strong>{calcResults.tdee} kcal</strong></span>
+                    <span>{t('profile_calc_bmr')}: <strong>{calcResults.bmr} kcal</strong></span>
+                    <span>{t('profile_calc_tdee')}: <strong>{calcResults.tdee} kcal</strong></span>
                     <span style={{ gridColumn: '1 / -1', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '6px', fontSize: '0.8rem', color: '#fff' }}>
-                      Meta Recomendada: <strong>{calcResults.calories} kcal/dia</strong>
+                      {t('profile_calc_meta_rec')} <strong>{calcResults.calories} kcal/dia</strong>
                     </span>
                   </div>
                 </div>
@@ -402,20 +402,20 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           <div className="glass-card" style={sectionCardStyle}>
             <div style={sectionHeaderStyle}>
               <PieChart size={20} style={{ color: 'var(--macro-carbs)' }} />
-              <h3 style={sectionTitleStyle}>Metas e Macronutrientes</h3>
+              <h3 style={sectionTitleStyle}>{t('profile_tab_metas')}</h3>
             </div>
 
             {settings.profile.hasProfile ? (
               <>
                 <div style={inputGroupStyle}>
-                  <label style={inputLabelStyle}>Distribuição dos Macronutrientes</label>
+                  <label style={inputLabelStyle}>{t('profile_label_macro_split')}</label>
                   <select
                     value={settings.profile.macroSplitType}
                     onChange={(e) => handleProfileChange('macroSplitType', e.target.value as 'percentage' | 'fixed')}
                     style={inputFieldStyle}
                   >
-                    <option value="percentage">Percentagem (%)</option>
-                    <option value="fixed">Gramos fixos por kg de peso (Recomendado)</option>
+                    <option value="percentage">{t('profile_macro_pct_label')}</option>
+                    <option value="fixed">{t('profile_macro_fixed_label')}</option>
                   </select>
                 </div>
 
@@ -423,7 +423,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '8px' }}>
                     <div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
-                        <span>Proteína: {settings.profile.macroPercentages.protein}%</span>
+                        <span>{t('profile_label_protein')}: {settings.profile.macroPercentages.protein}%</span>
                         <span>{calcResults.protein}g</span>
                       </div>
                       <input
@@ -438,7 +438,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                     </div>
                     <div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
-                        <span>Hidratos: {settings.profile.macroPercentages.carbs}%</span>
+                        <span>{t('profile_label_carbs')}: {settings.profile.macroPercentages.carbs}%</span>
                         <span>{calcResults.carbs}g</span>
                       </div>
                       <input
@@ -453,7 +453,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                     </div>
                     <div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
-                        <span>Lípidos: {settings.profile.macroPercentages.fats}%</span>
+                        <span>{t('profile_label_fats')}: {settings.profile.macroPercentages.fats}%</span>
                         <span>{calcResults.fats}g</span>
                       </div>
                       <input
@@ -467,13 +467,13 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                       />
                     </div>
                     <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', textAlign: 'right' }}>
-                      Soma Total: {settings.profile.macroPercentages.protein + settings.profile.macroPercentages.carbs + settings.profile.macroPercentages.fats}% (Deve somar 100%)
+                      {t('profile_macro_sum_total')}: {settings.profile.macroPercentages.protein + settings.profile.macroPercentages.carbs + settings.profile.macroPercentages.fats}% ({t('profile_macro_sum_must_be')})
                     </span>
                   </div>
                 ) : (
                   <div style={gridFieldsStyle}>
                     <div style={inputGroupStyle}>
-                      <label style={inputLabelStyle}>Proteína (g/kg)</label>
+                      <label style={inputLabelStyle}>{t('profile_label_protein_fixed')}</label>
                       <input
                         type="number"
                         step="0.1"
@@ -483,7 +483,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                       />
                     </div>
                     <div style={inputGroupStyle}>
-                      <label style={inputLabelStyle}>Lípidos (g/kg)</label>
+                      <label style={inputLabelStyle}>{t('profile_label_fat_fixed')}</label>
                       <input
                         type="number"
                         step="0.1"
@@ -493,7 +493,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                       />
                     </div>
                     <p style={{ ...helpTextStyle, gridColumn: '1 / -1' }}>
-                      Os hidratos de carbono preenchem automaticamente as calorias restantes do objetivo.
+                      {t('profile_macro_fixed_hint')}
                     </p>
                   </div>
                 )}
@@ -502,7 +502,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               // Manual Mode (Fixed input fields)
               <div style={gridFieldsStyle}>
                 <div style={{ ...inputGroupStyle, gridColumn: '1 / -1' }}>
-                  <label style={inputLabelStyle}>Calorias Objetivo (kcal)</label>
+                  <label style={inputLabelStyle}>{t('profile_label_cal_goal')}</label>
                   <input
                     type="number"
                     value={settings.goals.calories || ''}
@@ -511,7 +511,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   />
                 </div>
                 <div style={inputGroupStyle}>
-                  <label style={inputLabelStyle}>Proteínas (g)</label>
+                  <label style={inputLabelStyle}>{t('profile_label_prot_fixed_g')}</label>
                   <input
                     type="number"
                     value={settings.goals.protein || ''}
@@ -520,7 +520,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   />
                 </div>
                 <div style={inputGroupStyle}>
-                  <label style={inputLabelStyle}>Carbohidratos (g)</label>
+                  <label style={inputLabelStyle}>{t('profile_label_carbs_fixed_g')}</label>
                   <input
                     type="number"
                     value={settings.goals.carbs || ''}
@@ -529,7 +529,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   />
                 </div>
                 <div style={{ ...inputGroupStyle, gridColumn: '1 / -1' }}>
-                  <label style={inputLabelStyle}>Lípidos (g)</label>
+                  <label style={inputLabelStyle}>{t('profile_label_fats_fixed_g')}</label>
                   <input
                     type="number"
                     value={settings.goals.fats || ''}
@@ -548,7 +548,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         {activeCategory !== 'gallery' && activeCategory !== 'security' && (
           <button type="submit" style={submitButtonStyle}>
             <Save size={16} />
-            <span>Guardar Definições</span>
+            <span>{t('profile_btn_save_settings')}</span>
           </button>
         )}
       </form>
@@ -558,18 +558,18 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         <div className="glass-card" style={sectionCardStyle}>
           <div style={sectionHeaderStyle}>
             <ImageIcon size={20} style={{ color: 'var(--macro-calories)' }} />
-            <h3 style={sectionTitleStyle}>Galeria de Refeições</h3>
+            <h3 style={sectionTitleStyle}>{t('profile_gallery_title')}</h3>
           </div>
           <p style={helpTextStyle}>
-            Todas as fotografias de alimentos que registou nas suas refeições diárias.
+            {t('profile_gallery_desc')}
           </p>
 
           {allPhotos.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '36px', color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>
-              Nenhuma fotografia guardada ainda.
+              {t('profile_gallery_no_photos')}
               <br />
               <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '4px', display: 'inline-block' }}>
-                Registe refeições utilizando o analisador de fotos por IA para popular esta galeria.
+                {t('profile_gallery_no_photos_hint')}
               </span>
             </div>
           ) : (
@@ -598,7 +598,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         <div className="glass-card" style={sectionCardStyle}>
           <div style={sectionHeaderStyle}>
             <Lock size={20} style={{ color: 'var(--macro-protein)' }} />
-            <h3 style={sectionTitleStyle}>Segurança e Sessão</h3>
+            <h3 style={sectionTitleStyle}>{t('profile_sec_title')}</h3>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -608,15 +608,15 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 onClick={() => setShowPasswordForm(true)} 
                 style={secondaryButtonStyle}
               >
-                Alterar Palavra-passe
+                {t('profile_btn_change_pass_lbl')}
               </button>
             ) : (
               <form onSubmit={handlePasswordUpdate} style={passwordFormStyle}>
-                <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600 }}>Nova Palavra-passe</h4>
+                <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600 }}>{t('profile_label_new_pass_val')}</h4>
                 <div style={{ position: 'relative' }}>
                   <input
                     type={showPwd ? "text" : "password"}
-                    placeholder="Mínimo 6 caracteres"
+                    placeholder={t('profile_placeholder_min_char')}
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     style={inputFieldStyle}
@@ -631,10 +631,10 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   </button>
                 </div>
 
-                <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600, marginTop: '8px' }}>Confirmar Palavra-passe</h4>
+                <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600, marginTop: '8px' }}>{t('profile_label_confirm_pass')}</h4>
                 <input
                   type={showPwd ? "text" : "password"}
-                  placeholder="Confirme a nova palavra-passe"
+                  placeholder={t('profile_placeholder_confirm_new')}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   style={inputFieldStyle}
@@ -647,14 +647,14 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                     onClick={() => { setShowPasswordForm(false); setNewPassword(''); setConfirmPassword(''); }} 
                     style={{ ...secondaryButtonStyle, flex: 1 }}
                   >
-                    Cancelar
+                    {t('profile_btn_cancel_lbl')}
                   </button>
                   <button 
                     type="submit" 
                     disabled={isUpdatingPassword} 
                     style={{ ...submitButtonStyle, flex: 1, margin: 0 }}
                   >
-                    {isUpdatingPassword ? <Loader2 size={14} className="animate-spin" /> : <span>Guardar</span>}
+                    {isUpdatingPassword ? <Loader2 size={14} className="animate-spin" /> : <span>{t('profile_btn_save_lbl')}</span>}
                   </button>
                 </div>
               </form>

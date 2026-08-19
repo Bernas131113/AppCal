@@ -25,7 +25,9 @@ import {
   Trash2, 
   Zap 
 } from 'lucide-react';
+import { useTranslation } from './utils/i18n';
 import './App.css';
+
 
 function App() {
   const {
@@ -50,6 +52,8 @@ function App() {
     syncSettingsFromCloud
   } = useAppStore();
 
+  const { t } = useTranslation();
+
   // New navigation & plus menu states
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [activeLoggerMode, setActiveLoggerMode] = useState<'ai' | 'search' | 'quick' | null>(null);
@@ -64,7 +68,7 @@ function App() {
   const handleRemoveFavorite = (id: string) => {
     deleteFavorite(id);
     setFavoritesList(getFavorites());
-    showToast('Refeição removida dos favoritos.', 'info');
+    showToast(t('fav_deleted'), 'info');
   };
 
   const handleLogFavoriteInstantly = async (fav: FavoriteMeal) => {
@@ -91,13 +95,14 @@ function App() {
       total_protein,
       total_carbs,
       total_fats,
-      notes: `Registado instantaneamente dos favoritos: ${fav.name}`
+      notes: `${fav.name}`
     };
     
     await insertMeal(newMeal);
     await loadMeals();
-    showToast('Refeição favorita registada!', 'success');
+    showToast(t('fav_logged'), 'success');
   };
+
   useEffect(() => {
     const initSession = async () => {
       try {
@@ -110,17 +115,13 @@ function App() {
           }
         }
       } catch (err) {
-        console.warn("Falha ao recuperar sessão ativa do Supabase:", err);
+        console.warn("Failed to recover Supabase session:", err);
       }
 
       const user = getLoggedInUser();
       if (user) {
         setCurrentUser(user);
-        // Sync profile settings and meals from cloud database
-        await Promise.all([
-          syncSettingsFromCloud(),
-          loadMeals()
-        ]);
+        await Promise.all([syncSettingsFromCloud(), loadMeals()]);
       }
       setIsInitializing(false);
     };
@@ -129,36 +130,32 @@ function App() {
 
   const handleAuthSuccess = async (user: { id: string; email: string }) => {
     setCurrentUser(user);
-    showToast('Sessão iniciada com sucesso!', 'success');
+    showToast(t('auth_success'), 'success');
     setIsInitializing(true);
-    // Reload user settings and meals
-    await Promise.all([
-      syncSettingsFromCloud(),
-      loadMeals()
-    ]);
+    await Promise.all([syncSettingsFromCloud(), loadMeals()]);
     setIsInitializing(false);
   };
 
   const handleLogout = () => {
-    confirmAction('Terminar Sessão', 'Deseja realmente terminar a sua sessão calórica?', async () => {
+    confirmAction(t('auth_logout'), t('auth_logout') + '?', async () => {
       await dbSignOut();
       setCurrentUser(null);
       setEditingMeal(null);
       setPendingAnalysis(null);
-      showToast('Sessão terminada.', 'info');
+      showToast(t('auth_logout'), 'info');
     });
   };
 
   const handleSettingsSaved = async (newSettings: any) => {
     await saveSettingsCloud(newSettings);
-    showToast('Metas guardadas e sincronizadas!', 'success');
+    showToast(t('profile_success_save'), 'success');
   };
 
   const handleSaveMeal = async (newMeal: any) => {
     await insertMeal(newMeal);
     await loadMeals();
     setPendingAnalysis(null);
-    showToast('Refeição registada com sucesso!', 'success');
+    showToast(t('dash_meal_saved'), 'success');
   };
 
   const handleSaveEditedMeal = async (updatedMeal: any) => {
@@ -171,14 +168,14 @@ function App() {
     await insertMeal(mealToSave);
     await loadMeals();
     setEditingMeal(null);
-    showToast('Refeição atualizada com sucesso!', 'success');
+    showToast(t('dash_meal_saved'), 'success');
   };
 
   const handleDeleteMeal = (id: string) => {
-    confirmAction('Eliminar Registo', 'Tem a certeza que deseja apagar permanentemente este registo?', async () => {
+    confirmAction(t('dash_confirm_delete'), t('dash_confirm_delete'), async () => {
       await deleteMealDb(id);
       await loadMeals();
-      showToast('Registo eliminado.', 'success');
+      showToast(t('dash_meal_deleted'), 'success');
     });
   };
 
@@ -186,7 +183,7 @@ function App() {
     return (
       <div style={loadingPageStyle}>
         <Sparkles size={36} className="animate-pulse-slow" style={{ color: 'var(--macro-calories)' }} />
-        <span style={{ marginTop: '12px', fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>A carregar o AppCal...</span>
+        <span style={{ marginTop: '12px', fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>Loading AppCal...</span>
       </div>
     );
   }
@@ -216,10 +213,10 @@ function App() {
             <p style={customModalMessageStyle}>{modalConfig.message}</p>
             <div style={customModalActionsStyle}>
               <button onClick={() => useAppStore.setState({ modalConfig: null })} style={customModalCancelButtonStyle}>
-                Cancelar
+                {t('review_btn_cancel')}
               </button>
               <button onClick={modalConfig.onConfirm} style={customModalConfirmButtonStyle}>
-                Confirmar
+                {t('review_btn_save')}
               </button>
             </div>
           </div>
@@ -271,10 +268,10 @@ function App() {
             <div className="glass-panel" style={{ padding: '20px' }}>
               <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#fff', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Star size={20} style={{ color: 'var(--macro-fats)' }} />
-                <span>Refeições Favoritas</span>
+                <span>{t('fav_title')}</span>
               </h2>
               <p style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', margin: 0, marginTop: '4px' }}>
-                Guarde refeições a partir do seu diário para as registar instantaneamente no futuro.
+                {t('fav_subtitle')}
               </p>
             </div>
 
@@ -282,10 +279,7 @@ function App() {
               {favoritesList.length === 0 ? (
                 <div className="glass-panel" style={{ textAlign: 'center', padding: '36px', color: 'var(--color-text-secondary)' }}>
                   <Star size={24} style={{ color: 'rgba(255,255,255,0.1)', marginBottom: '8px' }} />
-                  <p style={{ fontSize: '0.85rem', margin: 0 }}>Nenhuma refeição favorita guardada.</p>
-                  <p style={{ fontSize: '0.73rem', color: 'var(--color-text-muted)', margin: 0, marginTop: '4px' }}>
-                    Clique na estrela (favorito) nas refeições do Diário para guardá-las aqui.
-                  </p>
+                  <p style={{ fontSize: '0.85rem', margin: 0 }}>{t('fav_empty')}</p>
                 </div>
               ) : (
                 favoritesList.map((fav) => (
@@ -334,7 +328,7 @@ function App() {
                         }}
                       >
                         <Zap size={11} />
-                        <span>Registar</span>
+                        <span>{t('progress_btn_register')}</span>
                       </button>
                     </div>
                   </div>
@@ -343,7 +337,6 @@ function App() {
             </div>
           </div>
         ) : activeTab === 'progress' ? (
-          /* TAB 3: PROGRESS (Weight Log & Adherence Charts) */
           <div style={{ width: '100%' }}>
             <ProgressTracker
               goals={settings.goals}
@@ -353,7 +346,6 @@ function App() {
             />
           </div>
         ) : (
-          /* TAB 4: PROFILE & CATEGORIZED SETTINGS */
           <div style={{ maxWidth: '600px', margin: '0 auto', width: '100%' }}>
             <ProfileView
               onSettingsSaved={handleSettingsSaved}
@@ -365,92 +357,57 @@ function App() {
         )}
       </main>
 
-      {/* Floating Add Option Menu (Dim Overlay) */}
+      {/* Floating Add Option Menu */}
       {showAddMenu && (
         <div 
           onClick={() => setShowAddMenu(false)} 
           style={{
-            position: 'fixed',
-            inset: 0,
+            position: 'fixed', inset: 0,
             backgroundColor: 'rgba(0,0,0,0.5)',
-            backdropFilter: 'blur(6px)',
-            WebkitBackdropFilter: 'blur(6px)',
-            zIndex: 10000,
-            display: 'flex',
-            alignItems: 'flex-end',
-            justifyContent: 'center',
-            paddingBottom: '100px',
+            backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
+            zIndex: 10000, display: 'flex', alignItems: 'flex-end',
+            justifyContent: 'center', paddingBottom: '100px',
           }}
         >
           <div 
             onClick={(e) => e.stopPropagation()} 
             className="glass-panel animate-pulse-slow"
-            style={{
-              width: 'calc(100% - 32px)',
-              maxWidth: '360px',
-              padding: '20px',
-              borderRadius: '24px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '12px',
-              boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
-            }}
+            style={{ width: 'calc(100% - 32px)', maxWidth: '360px', padding: '20px', borderRadius: '24px', display: 'flex', flexDirection: 'column', gap: '12px', boxShadow: '0 20px 40px rgba(0,0,0,0.5)' }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-              <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800 }}>Registar Refeição</h4>
-              <button 
-                onClick={() => setShowAddMenu(false)} 
-                style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              >
+              <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800 }}>{t('review_title_log')}</h4>
+              <button onClick={() => setShowAddMenu(false)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <X size={18} />
               </button>
             </div>
 
-            <button
-              onClick={() => {
-                setActiveLoggerMode('ai');
-                setShowAddMenu(false);
-              }}
-              style={addMenuOptionButtonStyle}
-            >
+            <button onClick={() => { setActiveLoggerMode('ai'); setShowAddMenu(false); }} style={addMenuOptionButtonStyle}>
               <div style={{ ...addMenuIconStyle, background: 'rgba(16, 185, 129, 0.1)', color: 'var(--macro-calories)' }}>
                 <Camera size={20} />
               </div>
               <div style={{ textAlign: 'left' }}>
-                <span style={addMenuTitleStyle}>Análise de Foto por IA</span>
-                <p style={addMenuDescStyle}>Tire uma foto ou carregue da galeria para estimar macros.</p>
+                <span style={addMenuTitleStyle}>{t('logger_title_photo')}</span>
+                <p style={addMenuDescStyle}>{t('logger_error_photos')}</p>
               </div>
             </button>
 
-            <button
-              onClick={() => {
-                setActiveLoggerMode('search');
-                setShowAddMenu(false);
-              }}
-              style={addMenuOptionButtonStyle}
-            >
+            <button onClick={() => { setActiveLoggerMode('search'); setShowAddMenu(false); }} style={addMenuOptionButtonStyle}>
               <div style={{ ...addMenuIconStyle, background: 'rgba(59, 130, 246, 0.1)', color: 'var(--macro-carbs)' }}>
                 <Search size={20} />
               </div>
               <div style={{ textAlign: 'left' }}>
-                <span style={addMenuTitleStyle}>Pesquisa de Alimentos</span>
-                <p style={addMenuDescStyle}>Pesquise no Open Food Facts ou código de barras.</p>
+                <span style={addMenuTitleStyle}>{t('logger_title_search')}</span>
+                <p style={addMenuDescStyle}>{t('logger_placeholder_search')}</p>
               </div>
             </button>
 
-            <button
-              onClick={() => {
-                setActiveLoggerMode('quick');
-                setShowAddMenu(false);
-              }}
-              style={addMenuOptionButtonStyle}
-            >
+            <button onClick={() => { setActiveLoggerMode('quick'); setShowAddMenu(false); }} style={addMenuOptionButtonStyle}>
               <div style={{ ...addMenuIconStyle, background: 'rgba(244, 63, 94, 0.1)', color: 'var(--macro-protein)' }}>
                 <Plus size={20} />
               </div>
               <div style={{ textAlign: 'left' }}>
-                <span style={addMenuTitleStyle}>Registo Rápido Manual</span>
-                <p style={addMenuDescStyle}>Insira calorias e macros manualmente.</p>
+                <span style={addMenuTitleStyle}>{t('logger_title_quick')}</span>
+                <p style={addMenuDescStyle}>{t('logger_error_quick')}</p>
               </div>
             </button>
           </div>
@@ -459,16 +416,10 @@ function App() {
 
       {/* Fullscreen Modal Logger */}
       {activeLoggerMode && (
-        <div 
-          style={loggerModalOverlayStyle}
-        >
-          {/* Glassmorphic header for the logger modal */}
+        <div style={loggerModalOverlayStyle}>
           <header className="glass-panel" style={loggerModalHeaderStyle}>
-            <h2 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0 }}>Registar Refeição</h2>
-            <button 
-              onClick={() => setActiveLoggerMode(null)}
-              style={loggerModalCloseButtonStyle}
-            >
+            <h2 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0 }}>{t('review_title_log')}</h2>
+            <button onClick={() => setActiveLoggerMode(null)} style={loggerModalCloseButtonStyle}>
               <X size={18} />
             </button>
           </header>
@@ -478,14 +429,8 @@ function App() {
               <MealLogger
                 apiKey={settings.geminiApiKey}
                 model={settings.model}
-                onAnalysisComplete={(result) => {
-                  setPendingAnalysis(result);
-                  setActiveLoggerMode(null);
-                }}
-                onInstantLog={(meal) => {
-                  handleSaveMeal(meal);
-                  setActiveLoggerMode(null);
-                }}
+                onAnalysisComplete={(result) => { setPendingAnalysis(result); setActiveLoggerMode(null); }}
+                onInstantLog={(meal) => { handleSaveMeal(meal); setActiveLoggerMode(null); }}
                 initialMode={activeLoggerMode}
               />
             </div>
@@ -493,48 +438,31 @@ function App() {
         </div>
       )}
 
-      {/* iOS styled Bottom Navigation Bar (Floating glassmorphic look) */}
+      {/* Bottom Navigation Bar */}
       {!pendingAnalysis && !editingMeal && (
         <nav className="glass-panel" style={bottomNavStyle}>
-          <button
-            onClick={() => setActiveTab('diary')}
-            style={{ ...bottomTabButtonStyle, ...(activeTab === 'diary' ? activeBottomTabStyle : {}) }}
-          >
+          <button onClick={() => setActiveTab('diary')} style={{ ...bottomTabButtonStyle, ...(activeTab === 'diary' ? activeBottomTabStyle : {}) }}>
             <Calendar size={20} />
-            <span>Diário</span>
+            <span>{t('diary')}</span>
           </button>
 
-          <button
-            onClick={() => setActiveTab('favorites')}
-            style={{ ...bottomTabButtonStyle, ...(activeTab === 'favorites' ? activeBottomTabStyle : {}) }}
-          >
+          <button onClick={() => setActiveTab('favorites')} style={{ ...bottomTabButtonStyle, ...(activeTab === 'favorites' ? activeBottomTabStyle : {}) }}>
             <Star size={20} />
-            <span>Favoritos</span>
+            <span>{t('favorites')}</span>
           </button>
 
-          {/* Center glowing Plus Button */}
-          <button
-            onClick={() => setShowAddMenu(true)}
-            style={plusButtonStyle}
-            aria-label="Adicionar Refeição"
-          >
+          <button onClick={() => setShowAddMenu(true)} style={plusButtonStyle} aria-label="Add meal">
             <Plus size={28} />
           </button>
           
-          <button
-            onClick={() => setActiveTab('progress')}
-            style={{ ...bottomTabButtonStyle, ...(activeTab === 'progress' ? activeBottomTabStyle : {}) }}
-          >
+          <button onClick={() => setActiveTab('progress')} style={{ ...bottomTabButtonStyle, ...(activeTab === 'progress' ? activeBottomTabStyle : {}) }}>
             <TrendingUp size={20} />
-            <span>Progresso</span>
+            <span>{t('progress')}</span>
           </button>
 
-          <button
-            onClick={() => setActiveTab('profile')}
-            style={{ ...bottomTabButtonStyle, ...(activeTab === 'profile' ? activeBottomTabStyle : {}) }}
-          >
+          <button onClick={() => setActiveTab('profile')} style={{ ...bottomTabButtonStyle, ...(activeTab === 'profile' ? activeBottomTabStyle : {}) }}>
             <User size={20} />
-            <span>Perfil</span>
+            <span>{t('profile')}</span>
           </button>
         </nav>
       )}

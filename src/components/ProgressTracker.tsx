@@ -3,6 +3,7 @@ import type { WeightLog, UserGoals, Meal } from '../types';
 import { fetchWeightLogs, insertWeightLog, deleteWeightLogDb } from '../utils/supabase';
 import { Scale, Plus, Trash2, Calendar, TrendingUp, Award, Activity } from 'lucide-react';
 import { formatDateLabel, isSameDay } from '../utils/helpers';
+import { useTranslation } from '../utils/i18n';
 
 interface ProgressTrackerProps {
   goals: UserGoals;
@@ -12,15 +13,13 @@ interface ProgressTrackerProps {
 }
 
 export const ProgressTracker: React.FC<ProgressTrackerProps> = ({ goals, meals, confirmAction, showToast }) => {
+  const { t } = useTranslation();
   const [weightLogs, setWeightLogs] = useState<WeightLog[]>([]);
   const [weightInput, setWeightInput] = useState('');
   const [dateInput, setDateInput] = useState(new Date().toISOString().split('T')[0]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Load weight logs on mount
-  useEffect(() => {
-    loadLogs();
-  }, []);
+  useEffect(() => { loadLogs(); }, []);
 
   const loadLogs = async () => {
     setIsLoading(true);
@@ -33,13 +32,12 @@ export const ProgressTracker: React.FC<ProgressTrackerProps> = ({ goals, meals, 
     e.preventDefault();
     const weightNum = parseFloat(weightInput);
     if (isNaN(weightNum) || weightNum <= 0) return;
-
     setIsLoading(true);
     const updated = await insertWeightLog(dateInput, weightNum);
     setWeightLogs(updated);
     setWeightInput('');
     setIsLoading(false);
-    if (showToast) showToast('Peso registado com sucesso!', 'success');
+    if (showToast) showToast(t('progress_success_weight'), 'success');
   };
 
   const handleDeleteLog = async (id: string) => {
@@ -48,12 +46,11 @@ export const ProgressTracker: React.FC<ProgressTrackerProps> = ({ goals, meals, 
       const updated = await deleteWeightLogDb(id);
       setWeightLogs(updated);
       setIsLoading(false);
-      if (showToast) showToast('Registo de peso eliminado.', 'success');
+      if (showToast) showToast(t('dash_meal_deleted'), 'success');
     };
-
     if (confirmAction) {
-      confirmAction('Eliminar Peso', 'Deseja apagar este registo de peso?', deleteOp);
-    } else if (confirm('Deseja apagar este registo de peso?')) {
+      confirmAction(t('dash_confirm_delete'), t('dash_confirm_delete'), deleteOp);
+    } else if (confirm(t('dash_confirm_delete'))) {
       deleteOp();
     }
   };
@@ -161,16 +158,16 @@ export const ProgressTracker: React.FC<ProgressTrackerProps> = ({ goals, meals, 
       <div className="glass-panel" style={sectionStyle}>
         <div style={titleRowStyle}>
           <Scale size={20} style={{ color: 'var(--macro-calories)' }} />
-          <h2 style={sectionTitleStyle}>Registo de Peso Corporal</h2>
+          <h2 style={sectionTitleStyle}>{t('progress_header_weight')}</h2>
         </div>
 
         <form onSubmit={handleAddWeight} style={weightFormStyle}>
-          <div style={inputGroupStyle}>
-            <label style={labelStyle}>Peso Matinal (kg)</label>
+          <div style={weightInputGroupStyle}>
+            <label style={labelStyle}>{t('progress_label_weight')}</label>
             <input
               type="number"
               step="0.1"
-              placeholder="Ex: 72.4"
+              placeholder={t('progress_placeholder_weight')}
               value={weightInput}
               onChange={(e) => setWeightInput(e.target.value)}
               required
@@ -178,8 +175,8 @@ export const ProgressTracker: React.FC<ProgressTrackerProps> = ({ goals, meals, 
             />
           </div>
 
-          <div style={inputGroupStyle}>
-            <label style={labelStyle}>Data de Medição</label>
+          <div style={weightInputGroupStyle}>
+            <label style={labelStyle}>{t('progress_label_date')}</label>
             <input
               type="date"
               value={dateInput}
@@ -189,9 +186,9 @@ export const ProgressTracker: React.FC<ProgressTrackerProps> = ({ goals, meals, 
             />
           </div>
 
-          <button type="submit" disabled={isLoading} style={{ ...addWeightButtonStyle, width: '100%', marginTop: '6px' }}>
+          <button type="submit" disabled={isLoading} style={{ ...addWeightButtonStyle, flex: '1 1 140px', minWidth: '130px', height: '38px', boxSizing: 'border-box' }}>
             <Plus size={18} />
-            <span>Registar</span>
+            <span>{t('progress_btn_register')}</span>
           </button>
         </form>
       </div>
@@ -200,14 +197,14 @@ export const ProgressTracker: React.FC<ProgressTrackerProps> = ({ goals, meals, 
       <div className="glass-panel" style={sectionStyle}>
         <div style={titleRowStyle}>
           <TrendingUp size={20} style={{ color: 'var(--macro-calories)' }} />
-          <h3 style={sectionTitleStyle}>Evolução de Peso e Média Móvel (7 Dias)</h3>
+          <h3 style={sectionTitleStyle}>{t('progress_header_evolution')}</h3>
         </div>
         
         {weightLogs.length < 2 ? (
           <div style={emptyChartStyle}>
             <Activity size={24} className="animate-pulse-slow" style={{ color: 'var(--color-text-muted)' }} />
             <span style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem', marginTop: '6px' }}>
-              Introduza pelo menos 2 registos de peso para gerar os gráficos.
+              {t('progress_logs_empty')}
             </span>
           </div>
         ) : (
@@ -245,11 +242,11 @@ export const ProgressTracker: React.FC<ProgressTrackerProps> = ({ goals, meals, 
             <div style={legendRowStyle}>
               <div style={legendItemStyle}>
                 <span style={{ ...legendDotStyle, backgroundColor: '#3b82f6', borderRadius: '0' }} />
-                <span style={legendTextStyle}>Peso Diário</span>
+                <span style={legendTextStyle}>{t('progress_label_weight')}</span>
               </div>
               <div style={legendItemStyle}>
                 <span style={{ ...legendDotStyle, backgroundColor: '#10b981' }} />
-                <span style={legendTextStyle}>Média Móvel (7 dias)</span>
+                <span style={legendTextStyle}>{t('progress_header_evolution')}</span>
               </div>
             </div>
           </div>
@@ -263,7 +260,7 @@ export const ProgressTracker: React.FC<ProgressTrackerProps> = ({ goals, meals, 
         <div className="glass-panel" style={sectionStyle}>
           <div style={titleRowStyle}>
             <Award size={18} style={{ color: 'var(--macro-calories)' }} />
-            <h3 style={smallChartTitleStyle}>Aderência Calórica (7d)</h3>
+            <h3 style={smallChartTitleStyle}>{t('progress_cal_adherence')}</h3>
           </div>
 
           <div style={barChartContainerStyle}>
@@ -300,7 +297,7 @@ export const ProgressTracker: React.FC<ProgressTrackerProps> = ({ goals, meals, 
         <div className="glass-panel" style={sectionStyle}>
           <div style={titleRowStyle}>
             <Award size={18} style={{ color: 'var(--macro-protein)' }} />
-            <h3 style={smallChartTitleStyle}>Consumo de Proteínas (7d)</h3>
+            <h3 style={smallChartTitleStyle}>{t('progress_prot_consumption')}</h3>
           </div>
 
           <div style={barChartContainerStyle}>
@@ -338,19 +335,19 @@ export const ProgressTracker: React.FC<ProgressTrackerProps> = ({ goals, meals, 
       <div className="glass-panel" style={sectionStyle}>
         <div style={titleRowStyle}>
           <Calendar size={18} style={{ color: 'var(--macro-calories)' }} />
-          <h3 style={sectionTitleStyle}>Histórico de Pesagens</h3>
+          <h3 style={sectionTitleStyle}>{t('progress_history_title')}</h3>
         </div>
 
         {weightLogs.length === 0 ? (
           <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem', textAlign: 'center', padding: '10px' }}>
-            Nenhum registo de peso disponível.
+            {t('progress_history_empty')}
           </p>
         ) : (
           <div style={tableContainerStyle} className="hide-scrollbar">
             <div style={tableHeaderStyle}>
-              <span style={{ ...tableColStyle, flex: 2 }}>Data</span>
-              <span style={{ ...tableColStyle, flex: 1.5 }}>Peso</span>
-              <span style={{ ...tableColStyle, flex: 1.8 }}>Média Móvel (7d)</span>
+              <span style={{ ...tableColStyle, flex: 2 }}>{t('progress_col_date')}</span>
+              <span style={{ ...tableColStyle, flex: 1.5 }}>{t('progress_col_weight')}</span>
+              <span style={{ ...tableColStyle, flex: 1.8 }}>{t('progress_col_moving_avg')}</span>
               <span style={{ width: '40px', flexShrink: 0 }}></span>
             </div>
 
@@ -417,17 +414,23 @@ const sectionTitleStyle: React.CSSProperties = {
 
 const weightFormStyle: React.CSSProperties = {
   display: 'flex',
-  flexDirection: 'column',
+  flexDirection: 'row',
+  flexWrap: 'wrap',
   gap: '12px',
   width: '100%',
+  alignItems: 'flex-end',
+  boxSizing: 'border-box',
 };
 
-const inputGroupStyle: React.CSSProperties = {
+const weightInputGroupStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: '4px',
-  width: '100%',
+  flex: '1 1 140px',
+  minWidth: '130px',
+  boxSizing: 'border-box',
 };
+
 
 const labelStyle: React.CSSProperties = {
   fontSize: '0.75rem',

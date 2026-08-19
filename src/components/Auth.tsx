@@ -1,17 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { dbSignIn, dbSignUp } from '../utils/supabase';
 import { Sparkles, Mail, Lock, LogIn, UserPlus, AlertCircle, ArrowRight, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { useTranslation } from '../utils/i18n';
 
 interface AuthProps {
   onAuthSuccess: (user: { id: string; email: string }) => void;
 }
 
 export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
+  const { t } = useTranslation();
   const [isLoginMode, setIsLoginMode] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,8 +27,6 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
         setEmail(savedEmail);
         setPassword(savedPassword);
         setRememberMe(true);
-        
-        // Auto-login!
         setIsLoading(true);
         const autoLogin = async () => {
           try {
@@ -36,9 +35,6 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
               onAuthSuccess(user);
             } else {
               setIsLoading(false);
-              if (signInError) {
-                setError('Erro no início de sessão automático. Por favor, introduza os dados novamente.');
-              }
             }
           } catch (err) {
             setIsLoading(false);
@@ -53,26 +49,13 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
     e.preventDefault();
     setError(null);
 
-    // Basic Validation
-    if (!email.trim() || !password.trim()) {
-      setError('Por favor, preencha todos os campos.');
-      return;
-    }
-
-    if (password.length < 6) {
-      setError('A palavra-passe deve ter pelo menos 6 caracteres.');
-      return;
-    }
-
-    if (!isLoginMode && password !== confirmPassword) {
-      setError('As palavras-passe não coincidem.');
-      return;
-    }
+    if (!email.trim() || !password.trim()) { setError(t('auth_error_fields')); return; }
+    if (password.length < 6) { setError(t('auth_error_password_len')); return; }
+    if (!isLoginMode && password !== confirmPassword) { setError(t('auth_error_password_match')); return; }
 
     setIsLoading(true);
     try {
       if (isLoginMode) {
-        // Sign In
         const { user, error: signInError } = await dbSignIn(email, password);
         if (signInError) {
           setError(signInError);
@@ -89,7 +72,6 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
           onAuthSuccess(user);
         }
       } else {
-        // Sign Up
         const { user, error: signUpError } = await dbSignUp(email, password);
         if (signUpError) {
           setError(signUpError);
@@ -104,7 +86,7 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
       }
     } catch (err: any) {
       console.error(err);
-      setError('Ocorreu um erro ao processar o seu pedido.');
+      setError(t('auth_error_fields'));
     } finally {
       setIsLoading(false);
     }
@@ -113,18 +95,16 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
   return (
     <div style={authPageContainerStyle}>
       <div className="glass-panel" style={authCardStyle}>
-        
+
         {/* Logo and Brand */}
         <div style={brandHeaderStyle}>
-          <div style={logoIconStyle}>
-            <Sparkles size={24} style={{ color: '#fff' }} />
-          </div>
+          <div style={logoIconStyle}><Sparkles size={24} style={{ color: '#fff' }} /></div>
           <h1 style={logoTextStyle}>AppCal</h1>
-          <p style={logoSubStyle}>Nutrição Inteligente e Registo Multimodal por IA</p>
+          <p style={logoSubStyle}>AI-powered nutrition tracker</p>
         </div>
 
         <h2 style={modeTitleStyle}>
-          {isLoginMode ? 'Iniciar Sessão' : 'Criar Conta Gratuita'}
+          {isLoginMode ? t('auth_title_login') : t('auth_title_signup')}
         </h2>
 
         {error && (
@@ -135,16 +115,16 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
         )}
 
         <form onSubmit={handleSubmit} style={formStyle}>
-          {/* Email input */}
+          {/* Email */}
           <div style={inputGroupStyle}>
-            <label style={labelStyle}>E-mail</label>
+            <label style={labelStyle}>{t('auth_label_email')}</label>
             <div style={inputIconContainerStyle}>
               <Mail size={18} style={iconStyle} />
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="nome@exemplo.com"
+                placeholder="name@example.com"
                 style={inputStyle}
                 disabled={isLoading}
                 required
@@ -152,9 +132,9 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
             </div>
           </div>
 
-          {/* Password input */}
+          {/* Password */}
           <div style={inputGroupStyle}>
-            <label style={labelStyle}>Palavra-passe (mín. 6 caracteres)</label>
+            <label style={labelStyle}>{t('auth_label_password')}</label>
             <div style={inputIconContainerStyle}>
               <Lock size={18} style={iconStyle} />
               <input
@@ -166,20 +146,16 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
                 disabled={isLoading}
                 required
               />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                style={eyeButtonStyle}
-              >
+              <button type="button" onClick={() => setShowPassword(!showPassword)} style={eyeButtonStyle}>
                 {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
             </div>
           </div>
 
-          {/* Confirm Password (only for registration) */}
+          {/* Confirm Password (sign up only) */}
           {!isLoginMode && (
             <div style={inputGroupStyle}>
-              <label style={labelStyle}>Confirmar Palavra-passe</label>
+              <label style={labelStyle}>{t('auth_label_confirm')}</label>
               <div style={inputIconContainerStyle}>
                 <Lock size={18} style={iconStyle} />
                 <input
@@ -195,7 +171,7 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
             </div>
           )}
 
-          {/* Remember Me Checkbox (only in Login Mode) */}
+          {/* Remember Me (login only) */}
           {isLoginMode && (
             <div style={rememberMeContainerStyle}>
               <label style={rememberMeLabelStyle}>
@@ -206,42 +182,33 @@ export const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
                   style={checkboxStyle}
                   disabled={isLoading}
                 />
-                <span>Manter sessão iniciada neste dispositivo</span>
+                <span>{t('auth_remember_me')}</span>
               </label>
             </div>
           )}
 
-          {/* Submit button */}
+          {/* Submit */}
           <button type="submit" disabled={isLoading} style={submitButtonStyle}>
             {isLoading ? (
               <Loader2 size={20} style={{ animation: 'spin 1.5s linear infinite' }} />
             ) : isLoginMode ? (
-              <>
-                <span>Entrar</span>
-                <LogIn size={18} />
-              </>
+              <><span>{t('auth_btn_login')}</span><LogIn size={18} /></>
             ) : (
-              <>
-                <span>Registar</span>
-                <UserPlus size={18} />
-              </>
+              <><span>{t('auth_btn_signup')}</span><UserPlus size={18} /></>
             )}
           </button>
         </form>
 
-        {/* Switch Auth mode footer */}
+        {/* Switch mode footer */}
         <div style={footerRowStyle}>
           <span style={footerTextStyle}>
-            {isLoginMode ? 'Ainda não tem conta?' : 'Já tem uma conta criada?'}
+            {isLoginMode ? t('auth_switch_signup') : t('auth_switch_login')}
           </span>
           <button
-            onClick={() => {
-              setIsLoginMode(!isLoginMode);
-              setError(null);
-            }}
+            onClick={() => { setIsLoginMode(!isLoginMode); setError(null); }}
             style={switchModeButtonStyle}
           >
-            {isLoginMode ? 'Registar aqui' : 'Entrar aqui'}
+            {isLoginMode ? t('auth_link_signup') : t('auth_link_login')}
             <ArrowRight size={14} />
           </button>
         </div>
@@ -360,7 +327,7 @@ const inputStyle: React.CSSProperties = {
   border: '1px solid var(--border-glass)',
   borderRadius: '10px',
   outline: 'none',
-  fontSize: '16px', // Prevents iOS Zoom
+  fontSize: '16px',
   color: '#fff',
   transition: 'border-color 0.2s',
 };

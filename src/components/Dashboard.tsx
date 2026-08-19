@@ -3,6 +3,7 @@ import type { Meal, UserGoals } from '../types';
 import { formatDateLabel, formatNumber, isSameDay } from '../utils/helpers';
 import { addFavorite } from '../utils/storage';
 import { ChevronLeft, ChevronRight, Trash2, Calendar, Coffee, Utensils, Moon, Carrot, Sparkles, Star, Edit2 } from 'lucide-react';
+import { useTranslation } from '../utils/i18n';
 
 interface DashboardProps {
   meals: Meal[];
@@ -42,6 +43,7 @@ export const calculateMealScore = (meal: { total_calories: number; total_protein
 };
 
 export const Dashboard: React.FC<DashboardProps> = ({ meals, goals, onDeleteMeal, onEditMeal, showToast }) => {
+  const { t } = useTranslation();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [favMealToSave, setFavMealToSave] = useState<Meal | null>(null);
   const [favNameInput, setFavNameInput] = useState('');
@@ -93,20 +95,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ meals, goals, onDeleteMeal
 
   const getMealTypeLabel = (type: string) => {
     switch (type) {
-      case 'breakfast': return 'Pequeno-almoço';
-      case 'lunch': return 'Almoço';
-      case 'dinner': return 'Jantar';
-      case 'snack': return 'Lanche';
-      case 'supper': return 'Ceia';
-      case 'extrasnack': return 'Snacks';
-      default: return 'Refeição';
+      case 'breakfast': return t('meal_breakfast');
+      case 'lunch': return t('meal_lunch');
+      case 'dinner': return t('meal_dinner');
+      case 'snack': return t('meal_snack');
+      case 'supper': return t('meal_supper');
+      case 'extrasnack': return t('meal_extrasnack');
+      default: return t('diary') === 'Diário' ? 'Refeição' : 'Meal';
     }
   };
 
   // Add meal to favorites
   const handleSaveAsFavorite = (meal: Meal) => {
     setFavMealToSave(meal);
-    setFavNameInput(`Meu ${getMealTypeLabel(meal.meal_type)} habitual`);
+    const prefix = t('diary') === 'Diário' ? 'Meu ' : 'My usual ';
+    const suffix = t('diary') === 'Diário' ? ' habitual' : '';
+    setFavNameInput(`${prefix}${getMealTypeLabel(meal.meal_type).toLowerCase()}${suffix}`);
   };
 
   const confirmSaveFavorite = () => {
@@ -122,7 +126,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ meals, goals, onDeleteMeal
     });
     setFavMealToSave(null);
     if (showToast) {
-      showToast('Refeição guardada nos Favoritos!', 'success');
+      showToast(t('dash_fav_saved'), 'success');
     }
   };
 
@@ -131,24 +135,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ meals, goals, onDeleteMeal
       {favMealToSave && (
         <div style={customFavModalOverlayStyle}>
           <div className="glass-panel" style={customFavModalContentStyle}>
-            <h3 style={customFavModalTitleStyle}>Guardar como Favorito</h3>
+            <h3 style={customFavModalTitleStyle}>{t('dash_fav_save_title')}</h3>
             <p style={customFavModalMessageStyle}>
-              Insira um nome para identificar este modelo rápido de refeição:
+              {t('dash_fav_save_desc')}
             </p>
             <input
               type="text"
               value={favNameInput}
               onChange={(e) => setFavNameInput(e.target.value)}
               style={favInputStyle}
-              placeholder="Ex: O meu pequeno-almoço habitual"
+              placeholder={t('dash_fav_placeholder')}
               autoFocus
             />
             <div style={customFavModalActionsStyle}>
               <button onClick={() => setFavMealToSave(null)} style={favCancelButtonStyle}>
-                Cancelar
+                {t('review_btn_cancel')}
               </button>
               <button onClick={confirmSaveFavorite} style={favConfirmButtonStyle}>
-                Guardar
+                {t('profile_btn_save_lbl')}
               </button>
             </div>
           </div>
@@ -182,19 +186,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ meals, goals, onDeleteMeal
       <div className="glass-panel" style={caloriesBannerStyle}>
         <div style={calDetailsStyle}>
           <span style={calHeaderTitleStyle}>
-            Balanço Calórico Diário
+            {t('dash_balance_title')}
           </span>
           
           {/* Meta - Consumidas = Restantes Equation display */}
           <div style={calEquationRowStyle}>
             <div style={eqItemStyle}>
               <span style={eqValStyle}>{goals.calories}</span>
-              <span style={eqLabelStyle}>Meta</span>
+              <span style={eqLabelStyle}>{t('dash_meta')}</span>
             </div>
             <span style={eqOperatorStyle}>-</span>
             <div style={eqItemStyle}>
               <span style={eqValStyle}>{dailyCalories}</span>
-              <span style={eqLabelStyle}>Comido</span>
+              <span style={eqLabelStyle}>{t('dash_consumed')}</span>
             </div>
             <span style={eqOperatorStyle}>=</span>
             <div style={eqItemStyle}>
@@ -205,7 +209,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ meals, goals, onDeleteMeal
               }}>
                 {caloriesRemaining}
               </span>
-              <span style={eqLabelStyle}>{caloriesRemaining >= 0 ? 'Restam' : 'Excesso'}</span>
+              <span style={eqLabelStyle}>{caloriesRemaining >= 0 ? t('dash_remaining_cals') : t('dash_over_limit_cals')}</span>
             </div>
           </div>
 
@@ -218,7 +222,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ meals, goals, onDeleteMeal
           </div>
           
           <span style={percentageTextStyle}>
-            {calPercent}% do teu orçamento consumido
+            {calPercent}% {t('dash_budget_consumed')}
           </span>
         </div>
 
@@ -251,37 +255,37 @@ export const Dashboard: React.FC<DashboardProps> = ({ meals, goals, onDeleteMeal
         {/* Protein */}
         <div className="glass-card" style={macroCardStyle}>
           <div style={macroHeaderStyle}>
-            <span style={{ color: 'var(--macro-protein)', fontWeight: 700 }}>Proteínas</span>
+            <span style={{ color: 'var(--macro-protein)', fontWeight: 700 }}>{t('profile_label_protein')}</span>
             <span style={macroValueStyle}>{formatNumber(dailyProtein)}g / {goals.protein}g</span>
           </div>
           <div style={macroBarBgStyle}>
             <div style={{ ...macroBarFillStyle, width: `${protPercent}%`, backgroundColor: 'var(--macro-protein)' }} />
           </div>
-          <span style={macroSubStyle}>{protPercent}% concluído</span>
+          <span style={macroSubStyle}>{protPercent}% {t('dash_completed')}</span>
         </div>
 
         {/* Carbs */}
         <div className="glass-card" style={macroCardStyle}>
           <div style={macroHeaderStyle}>
-            <span style={{ color: 'var(--macro-carbs)', fontWeight: 700 }}>Hidratos</span>
+            <span style={{ color: 'var(--macro-carbs)', fontWeight: 700 }}>{t('profile_label_carbs')}</span>
             <span style={macroValueStyle}>{formatNumber(dailyCarbs)}g / {goals.carbs}g</span>
           </div>
           <div style={macroBarBgStyle}>
             <div style={{ ...macroBarFillStyle, width: `${carbsPercent}%`, backgroundColor: 'var(--macro-carbs)' }} />
           </div>
-          <span style={macroSubStyle}>{carbsPercent}% concluído</span>
+          <span style={macroSubStyle}>{carbsPercent}% {t('dash_completed')}</span>
         </div>
 
         {/* Fats */}
         <div className="glass-card" style={macroCardStyle}>
           <div style={macroHeaderStyle}>
-            <span style={{ color: 'var(--macro-fats)', fontWeight: 700 }}>Lípidos</span>
+            <span style={{ color: 'var(--macro-fats)', fontWeight: 700 }}>{t('profile_label_fats')}</span>
             <span style={macroValueStyle}>{formatNumber(dailyFats)}g / {goals.fats}g</span>
           </div>
           <div style={macroBarBgStyle}>
             <div style={{ ...macroBarFillStyle, width: `${fatsPercent}%`, backgroundColor: 'var(--macro-fats)' }} />
           </div>
-          <span style={macroSubStyle}>{fatsPercent}% concluído</span>
+          <span style={macroSubStyle}>{fatsPercent}% {t('dash_completed')}</span>
         </div>
       </div>
 
@@ -289,16 +293,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ meals, goals, onDeleteMeal
       <div style={{ marginTop: '8px' }}>
         <h3 style={{ fontSize: '1.05rem', fontWeight: 800, marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Sparkles size={16} style={{ color: 'var(--macro-calories)' }} />
-          <span>Diário Alimentar ({filteredMeals.length})</span>
+          <span>{t('dash_food_diary')} ({filteredMeals.length})</span>
         </h3>
 
         {filteredMeals.length === 0 ? (
           <div className="glass-card" style={emptyStateStyle}>
             <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.9rem', fontWeight: 500 }}>
-              Sem refeições registadas para esta data.
+              {t('dash_no_meals')}
             </p>
             <span style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem', marginTop: '4px' }}>
-              Tira uma foto ao teu prato ou pesquisa um alimento acima para registar!
+              {t('dash_no_meals_hint')}
             </span>
           </div>
         ) : (

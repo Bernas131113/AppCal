@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { X, Camera, AlertCircle, Loader2 } from 'lucide-react';
+import { useTranslation } from '../utils/i18n';
 
 interface BarcodeScannerProps {
   onScanSuccess: (decodedText: string) => void;
@@ -8,13 +9,13 @@ interface BarcodeScannerProps {
 }
 
 export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScanSuccess, onClose }) => {
+  const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [barcodeInput, setBarcodeInput] = useState('');
   const [status, setStatus] = useState<'idle' | 'processing' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
   const hiddenReaderId = "hidden-file-barcode-reader";
 
-  // Automatically trigger the device camera file picker on mount
   useEffect(() => {
     if (fileInputRef.current) {
       fileInputRef.current.click();
@@ -29,7 +30,6 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScanSuccess, o
     setErrorMessage('');
 
     try {
-      // Create a static reader instance
       const html5QrCode = new Html5Qrcode(hiddenReaderId, {
         verbose: false,
         formatsToSupport: [
@@ -44,21 +44,17 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScanSuccess, o
         ]
       });
 
-      // Statically scan the photo captured by the native high-quality camera
       const decodedText = await html5QrCode.scanFile(file, false);
       
-      // Haptic/tactile vibration feedback on success
       if (navigator.vibrate) {
         try { navigator.vibrate([200]); } catch (vErr) {}
       }
       
       onScanSuccess(decodedText);
     } catch (err: any) {
-      console.warn("Falha ao descodificar imagem do código de barras:", err);
+      console.warn("Barcode scan failed:", err);
       setStatus('error');
-      setErrorMessage(
-        'Não foi possível detetar o código de barras nesta foto. Certifique-se de que a imagem está focada, bem iluminada e repita o processo, ou digite o código de barras manualmente abaixo.'
-      );
+      setErrorMessage(t('scanner_error_desc'));
     }
   };
 
@@ -77,10 +73,8 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScanSuccess, o
 
   return (
     <div style={overlayStyle}>
-      {/* Hidden element bound by Html5Qrcode */}
       <div id={hiddenReaderId} style={{ display: 'none' }} />
 
-      {/* Hidden native camera trigger file input */}
       <input
         type="file"
         ref={fileInputRef}
@@ -95,27 +89,25 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScanSuccess, o
         {/* Header */}
         <div style={headerStyle}>
           <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#fff', margin: 0 }}>
-            Leitor de Código de Barras
+            {t('scanner_title')}
           </h3>
           <button 
             type="button" 
             onClick={onClose} 
             style={closeButtonStyle}
-            title="Fechar leitor"
           >
             <X size={16} />
           </button>
         </div>
 
-        {/* View States */}
         {status === 'idle' && (
           <div style={centerBoxStyle} onClick={triggerCamera}>
             <Camera size={36} style={{ color: 'var(--macro-calories)', marginBottom: '8px' }} />
             <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#fff' }}>
-              Tirar Foto ao Código de Barras
+              {t('scanner_cam_idle')}
             </span>
             <span style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', marginTop: '4px', textAlign: 'center' }}>
-              Toque aqui para abrir a câmara do iPhone e tirar uma foto focada ao código de barras.
+              {t('scanner_cam_idle_desc')}
             </span>
           </div>
         )}
@@ -124,10 +116,10 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScanSuccess, o
           <div style={centerBoxStyle}>
             <Loader2 size={36} className="animate-spin" style={{ color: 'var(--macro-calories)', marginBottom: '8px' }} />
             <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#fff' }}>
-              A processar imagem...
+              {t('scanner_cam_processing')}
             </span>
             <span style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', marginTop: '4px' }}>
-              A ler dados do código de barras da fotografia.
+              {t('scanner_cam_processing_desc')}
             </span>
           </div>
         )}
@@ -144,7 +136,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScanSuccess, o
               style={retryButtonStyle}
             >
               <Camera size={14} />
-              <span>Tirar outra foto</span>
+              <span>{t('scanner_btn_retry')}</span>
             </button>
           </div>
         )}
@@ -152,17 +144,19 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScanSuccess, o
         {/* Divider */}
         <div style={dividerStyle}>
           <div style={lineStyle} />
-          <span style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', fontWeight: 600 }}>ou manual</span>
+          <span style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', fontWeight: 600 }}>
+            {t('scanner_divider_or')}
+          </span>
           <div style={lineStyle} />
         </div>
 
-        {/* Manual Barcode Input Fallback */}
+        {/* Manual Barcode Input */}
         <form onSubmit={handleManualSubmit} style={formStyle}>
           <input
             type="number"
             pattern="[0-9]*"
             inputMode="numeric"
-            placeholder="Introduza o código manualmente"
+            placeholder={t('scanner_placeholder_manual')}
             value={barcodeInput}
             onChange={(e) => setBarcodeInput(e.target.value)}
             style={inputStyle}
@@ -173,7 +167,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScanSuccess, o
             disabled={!barcodeInput.trim() || status === 'processing'}
             style={submitButtonStyle}
           >
-            Procurar
+            {t('scanner_btn_search')}
           </button>
         </form>
 
@@ -182,7 +176,6 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScanSuccess, o
   );
 };
 
-// CSS popover styles
 const overlayStyle: React.CSSProperties = {
   position: 'fixed',
   inset: 0,

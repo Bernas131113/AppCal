@@ -3,6 +3,7 @@ import type { FoodItem, MealType, Meal } from '../types';
 import { Trash2, Plus, Check, X, AlertCircle, Minus, Search, Barcode, ShoppingBag, Loader2 } from 'lucide-react';
 import { generateId, formatNumber } from '../utils/helpers';
 import { BarcodeScanner } from './BarcodeScanner';
+import { useTranslation } from '../utils/i18n';
 
 interface EditableFoodItem extends FoodItem {
   base: {
@@ -39,6 +40,7 @@ export const MealReview: React.FC<MealReviewProps> = ({
   onCancel,
   apiKey,
 }) => {
+  const { t } = useTranslation();
   const [mealType, setMealType] = useState<MealType>(initialMealType);
   const [items, setItems] = useState<EditableFoodItem[]>([]);
 
@@ -375,20 +377,20 @@ export const MealReview: React.FC<MealReviewProps> = ({
   };
 
   const mealTypesList: { value: MealType; label: string }[] = [
-    { value: 'breakfast', label: 'Pequeno-almoço' },
-    { value: 'lunch', label: 'Almoço' },
-    { value: 'snack', label: 'Lanche' },
-    { value: 'dinner', label: 'Jantar' },
-    { value: 'supper', label: 'Ceia' },
-    { value: 'extrasnack', label: 'Snacks' },
+    { value: 'breakfast', label: t('meal_breakfast') },
+    { value: 'lunch', label: t('meal_lunch') },
+    { value: 'snack', label: t('meal_snack') },
+    { value: 'dinner', label: t('meal_dinner') },
+    { value: 'supper', label: t('meal_supper') },
+    { value: 'extrasnack', label: t('meal_extrasnack') },
   ];
 
   return (
     <div className="glass-panel" style={reviewContainerStyle}>
       <div style={reviewHeaderStyle}>
-        <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>Revisão Nutricional da IA</h2>
+        <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>{t('review_header_title')}</h2>
         <span style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
-          Ajuste as porções proporcionalmente e confirme os ingredientes
+          {t('review_header_subtitle')}
         </span>
       </div>
 
@@ -404,7 +406,7 @@ export const MealReview: React.FC<MealReviewProps> = ({
           )}
 
           <div className="glass-card" style={mealTypeSelectorContainerStyle}>
-            <label style={labelStyle}>Classificação da Refeição</label>
+            <label style={labelStyle}>{t('review_label_class')}</label>
             <div style={mealTypeGridStyle}>
               {mealTypesList.map((type) => (
                 <button
@@ -430,7 +432,7 @@ export const MealReview: React.FC<MealReviewProps> = ({
               <div style={emptyStateStyle}>
                 <AlertCircle size={24} style={{ color: 'var(--color-text-muted)' }} />
                 <span style={{ color: 'var(--color-text-secondary)', fontWeight: 500 }}>
-                  Nenhum ingrediente detetado. Adicione manualmente.
+                  {t('review_err_no_ingredient')}
                 </span>
               </div>
             ) : (
@@ -443,14 +445,14 @@ export const MealReview: React.FC<MealReviewProps> = ({
                       type="text"
                       value={item.name}
                       onChange={(e) => handleItemChange(index, 'name', e.target.value)}
-                      placeholder="Nome do ingrediente..."
+                      placeholder={t('review_placeholder_ingredient')}
                       style={cardTitleInputStyle}
                     />
                     
                     <button
                       onClick={() => handleDeleteItem(index)}
                       style={deleteCardButtonStyle}
-                      title="Apagar ingrediente"
+                      title={t('review_delete_ingredient')}
                     >
                       <Trash2 size={16} />
                     </button>
@@ -460,14 +462,14 @@ export const MealReview: React.FC<MealReviewProps> = ({
                   {item.confidence && (
                     <div style={{ marginBottom: '8px' }}>
                       <span className={`badge-confidence ${item.confidence}`}>
-                        {item.confidence === 'high' ? 'Alta Confiança' : item.confidence === 'medium' ? 'Confiança Média' : 'Baixa Confiança'}
+                        {item.confidence === 'high' ? t('review_confidence_high') : item.confidence === 'medium' ? t('review_confidence_medium') : t('review_confidence_low')}
                       </span>
                     </div>
                   )}
 
                   {/* Proportional Portion Slider & Buttons */}
                   <div className="glass-card" style={portionControlContainerStyle}>
-                    <span style={portionLabelStyle}>Porção</span>
+                    <span style={portionLabelStyle}>{t('review_label_portion')}</span>
                     <div style={sliderRowStyle}>
                       <button
                         onClick={() => adjustWeightStep(index, -10)}
@@ -511,7 +513,7 @@ export const MealReview: React.FC<MealReviewProps> = ({
                   <div style={cardMacrosGridStyle}>
                     {/* Calories */}
                     <div style={{ ...macroInputWrapperStyle, borderColor: 'var(--macro-calories)' }}>
-                      <label style={macroInputLabelStyle}>Calorias (kcal)</label>
+                      <label style={macroInputLabelStyle}>{t('dash_calories')} (kcal)</label>
                       <input
                         type="number"
                         value={item.calories || ''}
@@ -521,7 +523,7 @@ export const MealReview: React.FC<MealReviewProps> = ({
                     </div>
                     {/* Protein */}
                     <div style={{ ...macroInputWrapperStyle, borderColor: 'var(--macro-protein)' }}>
-                      <label style={macroInputLabelStyle}>Proteína (g)</label>
+                      <label style={macroInputLabelStyle}>{t('profile_label_protein')} (g)</label>
                       <input
                         type="number"
                         step="0.1"
@@ -532,7 +534,7 @@ export const MealReview: React.FC<MealReviewProps> = ({
                     </div>
                     {/* Carbs */}
                     <div style={{ ...macroInputWrapperStyle, borderColor: 'var(--macro-carbs)' }}>
-                      <label style={macroInputLabelStyle}>Hidratos (g)</label>
+                      <label style={macroInputLabelStyle}>{t('profile_label_carbs')} (g)</label>
                       <input
                         type="number"
                         step="0.1"
@@ -543,7 +545,7 @@ export const MealReview: React.FC<MealReviewProps> = ({
                     </div>
                     {/* Fats */}
                     <div style={{ ...macroInputWrapperStyle, borderColor: 'var(--macro-fats)' }}>
-                      <label style={macroInputLabelStyle}>Lípidos (g)</label>
+                      <label style={macroInputLabelStyle}>{t('profile_label_fats')} (g)</label>
                       <input
                         type="number"
                         step="0.1"
@@ -563,16 +565,16 @@ export const MealReview: React.FC<MealReviewProps> = ({
           <div style={actionsRowStyle}>
             <div style={{ display: 'flex', gap: '8px' }}>
               <button onClick={() => setShowSearchModal(true)} style={searchOverlayTriggerButtonStyle}>
-                <Search size={16} /> Pesquisar Alimento
+                <Search size={16} /> {t('review_btn_search')}
               </button>
               <button onClick={handleAddItem} style={addItemButtonStyle}>
-                <Plus size={16} /> Manual
+                <Plus size={16} /> {t('review_btn_manual')}
               </button>
             </div>
 
             {/* Totals Summary */}
             <div className="glass-card" style={totalsCardStyle}>
-              <div style={totalLabelStyle}>TOTAIS</div>
+              <div style={totalLabelStyle}>{t('review_totals')}</div>
               <div style={totalsGridStyle}>
                 <div style={totalItemStyle}>
                   <span style={totalNumStyle}>{totalCalories}</span>
@@ -600,10 +602,10 @@ export const MealReview: React.FC<MealReviewProps> = ({
       {/* Primary Confirm and Cancel Buttons */}
       <div style={buttonFooterStyle}>
         <button onClick={onCancel} style={cancelButtonStyle}>
-          <X size={18} /> Descartar
+          <X size={18} /> {t('review_btn_discard')}
         </button>
         <button onClick={handleConfirmSave} style={saveButtonStyle}>
-          <Check size={18} /> Gravar Refeição
+          <Check size={18} /> {t('review_btn_save_meal')}
         </button>
       </div>
 
@@ -612,7 +614,7 @@ export const MealReview: React.FC<MealReviewProps> = ({
         <div style={customSearchModalOverlayStyle}>
           <div className="glass-panel" style={customSearchModalContentStyle}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-glass)', paddingBottom: '12px', marginBottom: '8px' }}>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#fff' }}>Pesquisar Alimento</h3>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#fff' }}>{t('review_btn_search')}</h3>
               <button onClick={() => { setShowSearchModal(false); setSearchResults([]); setSearchQuery(''); }} style={{ background: 'none', border: 'none', color: 'var(--color-text-secondary)', fontSize: '1.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
                 <X size={20} />
               </button>
@@ -621,7 +623,7 @@ export const MealReview: React.FC<MealReviewProps> = ({
             <form onSubmit={searchFoodDatabase} style={searchFormStyle}>
               <input
                 type="text"
-                placeholder="Nome do alimento (ex: Frango, Arroz)..."
+                placeholder={t('review_search_placeholder')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 style={searchInputStyle}
@@ -631,7 +633,7 @@ export const MealReview: React.FC<MealReviewProps> = ({
                 type="button"
                 onClick={() => setShowBarcodeScanner(true)}
                 style={barcodeScannerTriggerButtonStyle}
-                title="Ler código de barras"
+                title={t('scanner_title')}
               >
                 <Barcode size={18} />
               </button>
@@ -664,7 +666,7 @@ export const MealReview: React.FC<MealReviewProps> = ({
                       {prod.product_name_pt || prod.product_name}
                     </h4>
                     <span style={searchResultSubStyle}>
-                      {prod.brands || 'Sem Marca'} | {Math.round(Number(prod.nutriments?.['energy-kcal_100g'] || 0))} kcal/100g
+                      {prod.brands || t('review_search_no_brand')} | {Math.round(Number(prod.nutriments?.['energy-kcal_100g'] || 0))} kcal/100g
                     </span>
                   </div>
                 </div>
@@ -683,7 +685,7 @@ export const MealReview: React.FC<MealReviewProps> = ({
                 {selectedSearchProduct.product_name_pt || selectedSearchProduct.product_name || 'Alimento'}
               </h3>
               <span style={customProductModalBrandStyle}>
-                Marca: {selectedSearchProduct.brands || 'Genérico'}
+                {t('review_product_brand')}: {selectedSearchProduct.brands || 'Genérico'}
               </span>
             </div>
 
@@ -706,7 +708,7 @@ export const MealReview: React.FC<MealReviewProps> = ({
               {/* Nutrition Facts breakdown per portion size */}
               <div className="glass-card" style={customProductModalNutritionStyle}>
                 <h4 style={customProductModalSectionTitleStyle}>
-                  Valores Estimados ({searchWeightGrams}g)
+                  {t('review_product_estimated')} ({searchWeightGrams}g)
                 </h4>
                 
                 {/* Visual macros grid */}
@@ -741,7 +743,7 @@ export const MealReview: React.FC<MealReviewProps> = ({
               {/* Portion Control Slider and Input */}
               <div className="glass-card" style={customProductModalPortionStyle}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <span style={portionLabelStyle}>Quantidade</span>
+                  <span style={portionLabelStyle}>{t('review_product_qty')}</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: 'var(--bg-input)', border: '1px solid var(--border-glass)', borderRadius: '8px', padding: '4px 8px', width: '90px' }}>
                     <input
                       type="number"
@@ -767,10 +769,10 @@ export const MealReview: React.FC<MealReviewProps> = ({
 
             <div style={customProductModalActionsStyle}>
               <button onClick={() => setSelectedSearchProduct(null)} style={customProductModalCancelButtonStyle}>
-                Cancelar
+                {t('review_btn_cancel')}
               </button>
               <button onClick={addSearchedProductToSession} style={customProductModalConfirmButtonStyle}>
-                Adicionar
+                {t('review_btn_add_item').split(' ')[0]}
               </button>
             </div>
           </div>

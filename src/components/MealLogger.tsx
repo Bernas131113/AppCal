@@ -7,6 +7,7 @@ import { Waveform } from './Waveform';
 import { getFavorites, deleteFavorite } from '../utils/storage';
 import type { FoodItem, MealType, FavoriteMeal, Meal } from '../types';
 import { generateId } from '../utils/helpers';
+import { useTranslation } from '../utils/i18n';
 
 interface MealLoggerProps {
   apiKey: string;
@@ -28,6 +29,7 @@ const getNutriment = (nutriments: any, key: string): number => {
 };
 
 export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysisComplete, onInstantLog, initialMode }) => {
+  const { t } = useTranslation();
   const [activeMode, setActiveMode] = useState<'ai' | 'search' | 'quick' | 'fav'>(initialMode || 'ai');
   const [sessionItems, setSessionItems] = useState<FoodItem[]>([]);
   const [selectedMealType, setSelectedMealType] = useState<MealType>('lunch');
@@ -96,7 +98,7 @@ export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysi
         setPhotos((prev) => [...prev, compressedBase64]);
       } catch (err) {
         console.error('Erro ao comprimir ficheiro:', err);
-        setError('Erro ao carregar imagem.');
+        setError(t('logger_err_upload'));
       }
     }
     e.target.value = '';
@@ -126,7 +128,7 @@ export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysi
       setIsRecording(true);
     } catch (err) {
       console.error(err);
-      setError('Microfone inacessível.');
+      setError(t('logger_err_mic'));
     }
   };
 
@@ -147,18 +149,18 @@ export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysi
       const response = await fetch(`https://world.openfoodfacts.org/api/v2/product/${code.trim()}.json`, {
         headers: { 'User-Agent': 'AppCalNutritionApp - Web - Version 1.0 - contact@appcal.com' }
       });
-      if (!response.ok) throw new Error('Código de barras não encontrado.');
+      if (!response.ok) throw new Error(t('logger_err_barcode'));
       const data = await response.json();
       
       if (data.status === 1 && data.product) {
         setSelectedSearchProduct(data.product);
         setSearchWeightGrams(100); // Default to 100g
       } else {
-        setError('Produto não encontrado com esse código de barras.');
+        setError(t('logger_err_product_not_found'));
       }
     } catch (err) {
       console.error(err);
-      setError('Código de barras não encontrado ou erro de rede.');
+      setError(t('logger_err_network'));
     } finally {
       setIsSearching(false);
     }
@@ -186,7 +188,7 @@ export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysi
       const data = await response.json();
       setSearchResults(data.products || []);
       if ((data.products || []).length === 0) {
-        setError('Nenhum alimento encontrado com esse nome.');
+        setError(t('logger_err_no_food'));
       }
     } catch (err) {
       clearTimeout(timeoutId);
@@ -246,12 +248,12 @@ export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysi
 
         const parsed = JSON.parse(textResponse.trim());
         setSearchResults(parsed.products || []);
-        if ((parsed.products || []).length === 0) {
-          setError('Nenhum alimento encontrado.');
+         if ((parsed.products || []).length === 0) {
+          setError(t('logger_err_none'));
         }
       } catch (geminiErr) {
         console.error('Falha dupla (OFF e Gemini):', geminiErr);
-        setError('Ocorreu um erro ao pesquisar alimentos. Base de dados e IA indisponíveis.');
+        setError(t('logger_err_fallback'));
       }
     } finally {
       setIsSearching(false);
@@ -404,7 +406,7 @@ export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysi
           style={{ ...modeTabButtonStyle, ...(activeMode === 'ai' ? modeTabActiveStyle : {}) }}
         >
           <Camera size={18} />
-          <span>IA Visual</span>
+          <span>{t('logger_tab_ai')}</span>
         </button>
 
         <button
@@ -412,7 +414,7 @@ export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysi
           style={{ ...modeTabButtonStyle, ...(activeMode === 'search' ? modeTabActiveStyle : {}) }}
         >
           <Search size={18} />
-          <span>Pesquisar</span>
+          <span>{t('logger_tab_search')}</span>
         </button>
 
         <button
@@ -420,7 +422,7 @@ export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysi
           style={{ ...modeTabButtonStyle, ...(activeMode === 'quick' ? modeTabActiveStyle : {}) }}
         >
           <Plus size={18} />
-          <span>Rápido</span>
+          <span>{t('logger_tab_quick')}</span>
         </button>
 
         <button
@@ -428,7 +430,7 @@ export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysi
           style={{ ...modeTabButtonStyle, ...(activeMode === 'fav' ? modeTabActiveStyle : {}) }}
         >
           <Star size={18} />
-          <span>Favoritos</span>
+          <span>{t('favorites')}</span>
         </button>
       </div>
 
@@ -592,10 +594,10 @@ export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysi
       {activeMode === 'quick' && (
         <form onSubmit={handleAddQuickItem} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <div style={inputGroupStyle}>
-            <label style={labelStyle}>Nome do Alimento/Refeição</label>
+            <label style={labelStyle}>{t('logger_label_name')}</label>
             <input
               type="text"
-              placeholder="Ex: Almoço Fora, Bolo de Chocolate..."
+              placeholder={t('logger_placeholder_name')}
               value={quickName}
               onChange={(e) => setQuickName(e.target.value)}
               required
@@ -605,7 +607,7 @@ export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysi
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
             <div style={inputGroupStyle}>
-              <label style={{ ...labelStyle, color: 'var(--macro-calories)' }}>Calorias (kcal)</label>
+              <label style={{ ...labelStyle, color: 'var(--macro-calories)' }}>{t('review_product_estimated').split(' ')[0]} (kcal)</label>
               <input
                 type="number"
                 value={quickCalories || ''}
@@ -615,7 +617,7 @@ export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysi
             </div>
             
             <div style={inputGroupStyle}>
-              <label style={labelStyle}>Peso Total (g)</label>
+              <label style={labelStyle}>{t('logger_label_weight_total')}</label>
               <input
                 type="number"
                 value={quickWeight || ''}
@@ -625,7 +627,7 @@ export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysi
             </div>
 
             <div style={inputGroupStyle}>
-              <label style={{ ...labelStyle, color: 'var(--macro-protein)' }}>Proteína (g)</label>
+              <label style={{ ...labelStyle, color: 'var(--macro-protein)' }}>{t('profile_label_protein')} (g)</label>
               <input
                 type="number"
                 step="0.1"
@@ -636,7 +638,7 @@ export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysi
             </div>
 
             <div style={inputGroupStyle}>
-              <label style={{ ...labelStyle, color: 'var(--macro-carbs)' }}>Hidratos (g)</label>
+              <label style={{ ...labelStyle, color: 'var(--macro-carbs)' }}>{t('profile_label_carbs')} (g)</label>
               <input
                 type="number"
                 step="0.1"
@@ -647,7 +649,7 @@ export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysi
             </div>
 
             <div style={{ ...inputGroupStyle, gridColumn: 'span 2' }}>
-              <label style={{ ...labelStyle, color: 'var(--macro-fats)' }}>Gordura (g)</label>
+              <label style={{ ...labelStyle, color: 'var(--macro-fats)' }}>{t('profile_label_fats')} (g)</label>
               <input
                 type="number"
                 step="0.1"
@@ -659,20 +661,19 @@ export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysi
           </div>
 
           <button type="submit" disabled={!quickName.trim()} style={quickAddSubmitButtonStyle}>
-            <Plus size={16} /> Adicionar Alimento Manual
+            <Plus size={16} /> {t('logger_btn_add_manual')}
           </button>
         </form>
       )}
 
-      {/* MODE 4: FAVORITES */}
       {activeMode === 'fav' && (
         <div style={favoritesListContainerStyle} className="hide-scrollbar">
           {favoritesList.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '24px', color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>
-              Nenhuma refeição favorita guardada. 
+              {t('logger_fav_empty')}
               <br />
               <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '4px', display: 'inline-block' }}>
-                Clica no botão de favorito de uma refeição no histórico do diário para guardar.
+                {t('logger_fav_empty_hint')}
               </span>
             </div>
           ) : (
@@ -685,7 +686,7 @@ export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysi
                       {fav.total_calories} kcal
                     </span>
                   </div>
-                  <button onClick={() => removeFavorite(fav.id)} style={deleteFavButtonStyle} title="Apagar dos Favoritos">
+                  <button onClick={() => removeFavorite(fav.id)} style={deleteFavButtonStyle} title={t('logger_fav_delete_title')}>
                     <Trash2 size={14} />
                   </button>
                 </div>
@@ -698,10 +699,10 @@ export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysi
 
                 <div style={favActionsRowStyle}>
                   <button onClick={() => loadFavoriteToSession(fav)} style={favLoadButtonStyle}>
-                    Carregar
+                    {t('logger_fav_load')}
                   </button>
                   <button onClick={() => logFavoriteInstantly(fav)} style={favInstantLogButtonStyle}>
-                    <Zap size={12} /> Registar Já
+                    <Zap size={12} /> {t('logger_fav_log_now')}
                   </button>
                 </div>
               </div>
@@ -714,8 +715,8 @@ export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysi
       {activeMode !== 'ai' && sessionItems.length > 0 && (
         <div className="glass-card" style={sessionDockContainerStyle}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={sessionDockTitleStyle}>Refeição em Elaboração ({sessionItems.length} itens)</span>
-            <button onClick={() => setSessionItems([])} style={clearSessionButtonStyle}>Limpar</button>
+            <span style={sessionDockTitleStyle}>{t('logger_dock_title')} ({sessionItems.length} {t('logger_dock_items')})</span>
+            <button onClick={() => setSessionItems([])} style={clearSessionButtonStyle}>{t('logger_dock_clear')}</button>
           </div>
           
           <div style={sessionItemsListStyle}>
@@ -744,7 +745,7 @@ export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysi
             </select>
 
             <button onClick={handleReviewSession} style={sessionReviewButtonStyle}>
-              Continuar para Revisão
+              {t('logger_dock_continue')}
             </button>
           </div>
         </div>
@@ -759,7 +760,7 @@ export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysi
                 {selectedSearchProduct.product_name_pt || selectedSearchProduct.product_name || 'Alimento'}
               </h3>
               <span style={customProductModalBrandStyle}>
-                Marca: {selectedSearchProduct.brands || 'Genérico'}
+                {t('logger_product_brand')}: {selectedSearchProduct.brands || 'Genérico'}
               </span>
             </div>
 
@@ -782,7 +783,7 @@ export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysi
               {/* Nutrition Facts breakdown per portion size */}
               <div className="glass-card" style={customProductModalNutritionStyle}>
                 <h4 style={customProductModalSectionTitleStyle}>
-                  Valores Estimados ({searchWeightGrams}g)
+                  {t('logger_product_estimated')} ({searchWeightGrams}g)
                 </h4>
                 
                 {/* Visual macros grid */}
@@ -817,7 +818,7 @@ export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysi
               {/* Portion Control Slider and Input */}
               <div className="glass-card" style={customProductModalPortionStyle}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <span style={labelStyle}>Quantidade</span>
+                  <span style={labelStyle}>{t('logger_product_qty')}</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: 'var(--bg-input)', border: '1px solid var(--border-glass)', borderRadius: '8px', padding: '4px 8px', width: '90px' }}>
                     <input
                       type="number"
@@ -843,10 +844,10 @@ export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysi
 
             <div style={customProductModalActionsStyle}>
               <button onClick={() => setSelectedSearchProduct(null)} style={customProductModalCancelButtonStyle}>
-                Cancelar
+                {t('review_btn_cancel')}
               </button>
               <button onClick={addSearchedProductToSession} style={customProductModalConfirmButtonStyle}>
-                Adicionar
+                {t('review_btn_add_item').split(' ')[0]}
               </button>
             </div>
           </div>
