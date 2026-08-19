@@ -161,8 +161,8 @@ export const ProgressTracker: React.FC<ProgressTrackerProps> = ({ goals, meals, 
           <h2 style={sectionTitleStyle}>{t('progress_header_weight')}</h2>
         </div>
 
-        <form onSubmit={handleAddWeight} style={weightFormStyle}>
-          <div style={weightInputGroupStyle}>
+        <form onSubmit={handleAddWeight} className="weight-log-form">
+          <div className="weight-input-group">
             <label style={labelStyle}>{t('progress_label_weight')}</label>
             <input
               type="number"
@@ -171,22 +171,22 @@ export const ProgressTracker: React.FC<ProgressTrackerProps> = ({ goals, meals, 
               value={weightInput}
               onChange={(e) => setWeightInput(e.target.value)}
               required
-              style={inputStyle}
+              className="weight-input-field"
             />
           </div>
 
-          <div style={weightInputGroupStyle}>
+          <div className="weight-input-group">
             <label style={labelStyle}>{t('progress_label_date')}</label>
             <input
               type="date"
               value={dateInput}
               onChange={(e) => setDateInput(e.target.value)}
               required
-              style={inputStyle}
+              className="weight-input-field"
             />
           </div>
 
-          <button type="submit" disabled={isLoading} style={{ ...addWeightButtonStyle, flex: '1 1 140px', minWidth: '130px', height: '38px', boxSizing: 'border-box' }}>
+          <button type="submit" disabled={isLoading} className="weight-submit-button">
             <Plus size={18} />
             <span>{t('progress_btn_register')}</span>
           </button>
@@ -412,61 +412,12 @@ const sectionTitleStyle: React.CSSProperties = {
   color: '#fff',
 };
 
-const weightFormStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'row',
-  flexWrap: 'wrap',
-  gap: '12px',
-  width: '100%',
-  alignItems: 'flex-end',
-  boxSizing: 'border-box',
-};
-
-const weightInputGroupStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '4px',
-  flex: '1 1 140px',
-  minWidth: '130px',
-  boxSizing: 'border-box',
-};
-
-
 const labelStyle: React.CSSProperties = {
   fontSize: '0.75rem',
   fontWeight: 600,
   color: 'var(--color-text-secondary)',
   textTransform: 'uppercase',
   letterSpacing: '0.05em',
-};
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '10px 14px',
-  backgroundColor: 'var(--bg-input)',
-  border: '1px solid var(--border-glass)',
-  borderRadius: '10px',
-  outline: 'none',
-  fontSize: '16px', // iOS scale
-  color: '#fff',
-  boxSizing: 'border-box',
-};
-
-const addWeightButtonStyle: React.CSSProperties = {
-  flex: 1,
-  padding: '11px',
-  borderRadius: '10px',
-  border: 'none',
-  background: 'var(--grad-calories)',
-  color: '#fff',
-  fontWeight: 700,
-  fontSize: '0.9rem',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: '6px',
-  cursor: 'pointer',
-  minWidth: '100px',
 };
 
 const emptyChartStyle: React.CSSProperties = {

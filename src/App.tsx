@@ -112,10 +112,13 @@ function App() {
           if (session?.user) {
             const sessionUser = { id: session.user.id, email: session.user.email };
             localStorage.setItem('appcal_current_user', JSON.stringify(sessionUser));
+          } else {
+            localStorage.removeItem('appcal_current_user');
           }
         }
       } catch (err) {
-        console.warn("Failed to recover Supabase session:", err);
+        console.warn("Failed to recover Supabase session, clearing user:", err);
+        localStorage.removeItem('appcal_current_user');
       }
 
       const user = getLoggedInUser();

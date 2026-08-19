@@ -298,7 +298,7 @@ export const fetchMeals = async (): Promise<Meal[]> => {
       if (error) throw error;
       
       // Map database structure to React state interface
-      return (data || []).map((m: any) => ({
+      const mappedMeals = (data || []).map((m: any) => ({
         id: m.id,
         timestamp: m.logged_at,
         meal_type: m.meal_type as any,
@@ -317,6 +317,14 @@ export const fetchMeals = async (): Promise<Meal[]> => {
           fats: Number(item.fats),
         })),
       }));
+
+      // Cache locally
+      const allMeals = JSON.parse(localStorage.getItem('appcal_meals_v2') || '[]');
+      const otherMeals = allMeals.filter((m: any) => m.user_id !== user.id);
+      const userMeals = mappedMeals.map((m: any) => ({ ...m, user_id: user.id }));
+      localStorage.setItem('appcal_meals_v2', JSON.stringify([...otherMeals, ...userMeals]));
+
+      return mappedMeals;
     } catch (e) {
       console.error('Erro ao ler refeições do Supabase. Carregando da cache local.', e);
     }
@@ -372,7 +380,6 @@ export const insertMeal = async (meal: Meal): Promise<void> => {
 
       const { error: itemsError } = await ctx.client.from('meal_items').insert(itemsToInsert);
       if (itemsError) throw itemsError;
-      return;
     } catch (e) {
       console.error('Falha ao inserir/atualizar refeição no Supabase, guardando na cache local.', e);
     }
@@ -403,7 +410,6 @@ export const deleteMealDb = async (id: string): Promise<void> => {
     try {
       const { error } = await ctx.client.from('meals').delete().eq('id', id).eq('user_id', ctx.userId);
       if (error) throw error;
-      return;
     } catch (e) {
       console.error('Erro ao apagar refeição no Supabase.', e);
     }
@@ -432,12 +438,19 @@ export const fetchWeightLogs = async (): Promise<WeightLog[]> => {
         .order('date', { ascending: true });
 
       if (error) throw error;
-      return (data || []).map((l: any) => ({
+      const mappedLogs = (data || []).map((l: any) => ({
         id: l.id,
         user_id: ctx.userId,
         date: l.date,
         weight_kg: Number(l.weight_kg),
       }));
+
+      // Cache locally
+      const allLogs = JSON.parse(localStorage.getItem('appcal_weight_logs') || '[]');
+      const otherLogs = allLogs.filter((l: any) => l.user_id !== user.id);
+      localStorage.setItem('appcal_weight_logs', JSON.stringify([...otherLogs, ...mappedLogs]));
+
+      return mappedLogs;
     } catch (e) {
       console.error('Erro ao ler logs de peso do Supabase.', e);
     }
@@ -560,7 +573,7 @@ export const fetchFavorites = async (): Promise<FavoriteMeal[]> => {
         .eq('user_id', ctx.userId);
 
       if (error) throw error;
-      return (data || []).map((f: any) => ({
+      const favs = (data || []).map((f: any) => ({
         id: f.id,
         name: f.name,
         items: f.items || [],
@@ -569,14 +582,18 @@ export const fetchFavorites = async (): Promise<FavoriteMeal[]> => {
         total_carbs: Number(f.total_carbs),
         total_fats: Number(f.total_fats),
       }));
+
+      // Cache locally
+      localStorage.setItem('appcal_favorites', JSON.stringify(favs));
+
+      return favs;
     } catch (e) {
       console.error('Erro ao ler favoritos do Supabase. Carregando da cache local.', e);
     }
   }
 
   // Local fallback cache
-  const allFavorites = JSON.parse(localStorage.getItem('appcal_favorites_v2') || '[]');
-  return allFavorites.filter((f: any) => f.user_id === user.id);
+  return JSON.parse(localStorage.getItem('appcal_favorites') || '[]');
 };
 
 export const insertFavoriteDb = async (fav: FavoriteMeal): Promise<void> => {
@@ -602,24 +619,23 @@ export const insertFavoriteDb = async (fav: FavoriteMeal): Promise<void> => {
         }, { onConflict: 'id' });
 
       if (error) throw error;
-      return;
     } catch (e) {
       console.error('Erro ao guardar favorito no Supabase, guardando na cache local.', e);
     }
   }
 
   // Local fallback cache
-  const allFavorites = JSON.parse(localStorage.getItem('appcal_favorites_v2') || '[]');
-  const exists = allFavorites.some((f: any) => f.id === fav.id && f.user_id === user.id);
+  const allFavorites = JSON.parse(localStorage.getItem('appcal_favorites') || '[]');
+  const exists = allFavorites.some((f: any) => f.id === fav.id);
   let updated;
   if (exists) {
     updated = allFavorites.map((f: any) => 
-      (f.id === fav.id && f.user_id === user.id) ? { ...fav, user_id: user.id } : f
+      f.id === fav.id ? fav : f
     );
   } else {
-    updated = [{ ...fav, user_id: user.id }, ...allFavorites];
+    updated = [fav, ...allFavorites];
   }
-  localStorage.setItem('appcal_favorites_v2', JSON.stringify(updated));
+  localStorage.setItem('appcal_favorites', JSON.stringify(updated));
 };
 
 export const deleteFavoriteDb = async (id: string): Promise<void> => {
@@ -635,14 +651,13 @@ export const deleteFavoriteDb = async (id: string): Promise<void> => {
         .eq('id', id)
         .eq('user_id', ctx.userId);
       if (error) throw error;
-      return;
     } catch (e) {
       console.error('Erro ao apagar favorito no Supabase.', e);
     }
   }
 
   // Local fallback cache delete
-  const allFavorites = JSON.parse(localStorage.getItem('appcal_favorites_v2') || '[]');
-  const updated = allFavorites.filter((f: any) => !(f.id === id && f.user_id === user.id));
-  localStorage.setItem('appcal_favorites_v2', JSON.stringify(updated));
+  const allFavorites = JSON.parse(localStorage.getItem('appcal_favorites') || '[]');
+  const updated = allFavorites.filter((f: any) => f.id !== id);
+  localStorage.setItem('appcal_favorites', JSON.stringify(updated));
 };
