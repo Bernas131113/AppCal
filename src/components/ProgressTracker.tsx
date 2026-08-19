@@ -190,7 +190,7 @@ export const ProgressTracker: React.FC<ProgressTrackerProps> = ({ goals, meals, 
         </div>
 
         <form onSubmit={handleAddWeight} className="weight-log-form">
-          <div className="weight-input-group">
+          <div className="weight-input-group weight-field-group">
             <label style={labelStyle}>{t('progress_label_weight')}</label>
             <input
               type="number"
@@ -203,7 +203,7 @@ export const ProgressTracker: React.FC<ProgressTrackerProps> = ({ goals, meals, 
             />
           </div>
 
-          <div className="weight-input-group">
+          <div className="weight-input-group date-field-group">
             <label style={labelStyle}>{t('progress_label_date')}</label>
             <input
               type="date"

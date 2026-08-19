@@ -565,9 +565,16 @@ input, textarea, select {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  flex: 1 1 120px;
-  max-width: 150px;
+  flex: 1 1 100px;
   box-sizing: border-box;
+}
+
+.weight-field-group {
+  max-width: 100px;
+}
+
+.date-field-group {
+  max-width: 130px;
 }
 
 .weight-input-field {

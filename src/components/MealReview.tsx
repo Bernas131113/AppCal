@@ -43,6 +43,7 @@ export const MealReview: React.FC<MealReviewProps> = ({
   const { t } = useTranslation();
   const [mealType, setMealType] = useState<MealType>(initialMealType);
   const [items, setItems] = useState<EditableFoodItem[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Search & Barcode states
   const [showSearchModal, setShowSearchModal] = useState(false);
@@ -351,6 +352,9 @@ export const MealReview: React.FC<MealReviewProps> = ({
 
   // Confirm and save meal
   const handleConfirmSave = () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    
     const cleanItems: FoodItem[] = items.map(({ name, weight_g, calories, protein, carbs, fats, confidence }) => ({
       name,
       weight_g,
@@ -601,11 +605,11 @@ export const MealReview: React.FC<MealReviewProps> = ({
 
       {/* Primary Confirm and Cancel Buttons */}
       <div style={buttonFooterStyle}>
-        <button onClick={onCancel} style={cancelButtonStyle}>
+        <button onClick={onCancel} disabled={isSubmitting} style={{ ...cancelButtonStyle, opacity: isSubmitting ? 0.5 : 1 }}>
           <X size={18} /> {t('review_btn_discard')}
         </button>
-        <button onClick={handleConfirmSave} style={saveButtonStyle}>
-          <Check size={18} /> {t('review_btn_save_meal')}
+        <button onClick={handleConfirmSave} disabled={isSubmitting} style={{ ...saveButtonStyle, opacity: isSubmitting ? 0.5 : 1 }}>
+          <Check size={18} /> {isSubmitting ? 'A guardar...' : t('review_btn_save_meal')}
         </button>
       </div>
 
