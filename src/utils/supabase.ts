@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import type { Meal, WeightLog, AppSettings } from '../types';
+import type { Meal, WeightLog, AppSettings, FavoriteMeal } from '../types';
 
 /*
   ========================================================================
@@ -224,6 +224,8 @@ export const dbSignOut = async (): Promise<void> => {
   localStorage.removeItem('appcal_remember_me');
   localStorage.removeItem('appcal_saved_email');
   localStorage.removeItem('appcal_saved_password');
+  localStorage.removeItem('appcal_favorites');
+  localStorage.removeItem('appcal_favorites_v2');
 };
 
 export const dbUpdatePassword = async (newPassword: string): Promise<{ success: boolean; error: string | null }> => {
@@ -540,4 +542,107 @@ export const saveProfileSettings = async (settings: AppSettings): Promise<void> 
   } catch (e) {
     console.error('Erro ao guardar perfil no Supabase:', e);
   }
+};
+
+// ==========================================
+// DATA SYNC LOGIC (Favorites)
+// ==========================================
+export const fetchFavorites = async (): Promise<FavoriteMeal[]> => {
+  const user = getLoggedInUser();
+  if (!user) return [];
+
+  const ctx = getSupabaseContext();
+  if (ctx) {
+    try {
+      const { data, error } = await ctx.client
+        .from('favorites')
+        .select('id, name, items, total_calories, total_protein, total_carbs, total_fats')
+        .eq('user_id', ctx.userId);
+
+      if (error) throw error;
+      return (data || []).map((f: any) => ({
+        id: f.id,
+        name: f.name,
+        items: f.items || [],
+        total_calories: f.total_calories,
+        total_protein: Number(f.total_protein),
+        total_carbs: Number(f.total_carbs),
+        total_fats: Number(f.total_fats),
+      }));
+    } catch (e) {
+      console.error('Erro ao ler favoritos do Supabase. Carregando da cache local.', e);
+    }
+  }
+
+  // Local fallback cache
+  const allFavorites = JSON.parse(localStorage.getItem('appcal_favorites_v2') || '[]');
+  return allFavorites.filter((f: any) => f.user_id === user.id);
+};
+
+export const insertFavoriteDb = async (fav: FavoriteMeal): Promise<void> => {
+  const user = getLoggedInUser();
+  if (!user) return;
+
+  const ctx = getSupabaseContext();
+  if (ctx) {
+    try {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(fav.id);
+      
+      const { error } = await ctx.client
+        .from('favorites')
+        .upsert({
+          id: isUuid ? fav.id : undefined,
+          user_id: ctx.userId,
+          name: fav.name,
+          items: fav.items,
+          total_calories: fav.total_calories,
+          total_protein: fav.total_protein,
+          total_carbs: fav.total_carbs,
+          total_fats: fav.total_fats,
+        }, { onConflict: 'id' });
+
+      if (error) throw error;
+      return;
+    } catch (e) {
+      console.error('Erro ao guardar favorito no Supabase, guardando na cache local.', e);
+    }
+  }
+
+  // Local fallback cache
+  const allFavorites = JSON.parse(localStorage.getItem('appcal_favorites_v2') || '[]');
+  const exists = allFavorites.some((f: any) => f.id === fav.id && f.user_id === user.id);
+  let updated;
+  if (exists) {
+    updated = allFavorites.map((f: any) => 
+      (f.id === fav.id && f.user_id === user.id) ? { ...fav, user_id: user.id } : f
+    );
+  } else {
+    updated = [{ ...fav, user_id: user.id }, ...allFavorites];
+  }
+  localStorage.setItem('appcal_favorites_v2', JSON.stringify(updated));
+};
+
+export const deleteFavoriteDb = async (id: string): Promise<void> => {
+  const user = getLoggedInUser();
+  if (!user) return;
+
+  const ctx = getSupabaseContext();
+  if (ctx) {
+    try {
+      const { error } = await ctx.client
+        .from('favorites')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', ctx.userId);
+      if (error) throw error;
+      return;
+    } catch (e) {
+      console.error('Erro ao apagar favorito no Supabase.', e);
+    }
+  }
+
+  // Local fallback cache delete
+  const allFavorites = JSON.parse(localStorage.getItem('appcal_favorites_v2') || '[]');
+  const updated = allFavorites.filter((f: any) => !(f.id === id && f.user_id === user.id));
+  localStorage.setItem('appcal_favorites_v2', JSON.stringify(updated));
 };

@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useAppStore } from './store/useAppStore';
-import { getLoggedInUser, dbSignOut, deleteMealDb, insertMeal, getSupabaseClient } from './utils/supabase';
+import { getLoggedInUser, dbSignOut, deleteMealDb, insertMeal, getSupabaseClient, fetchFavorites } from './utils/supabase';
 import { MealLogger } from './components/MealLogger';
 import { MealReview } from './components/MealReview';
 import { Dashboard } from './components/Dashboard';
 import { ProgressTracker } from './components/ProgressTracker';
 import { Auth } from './components/Auth';
 import { ProfileView } from './components/ProfileView';
-import { getFavorites, deleteFavorite } from './utils/storage';
+import { getFavorites, deleteFavorite, saveFavorites } from './utils/storage';
 import type { FavoriteMeal, MealType } from './types';
 import { 
   Sparkles, 
@@ -121,7 +121,14 @@ function App() {
       const user = getLoggedInUser();
       if (user) {
         setCurrentUser(user);
-        await Promise.all([syncSettingsFromCloud(), loadMeals()]);
+        const [, , favs] = await Promise.all([
+          syncSettingsFromCloud(),
+          loadMeals(),
+          fetchFavorites(),
+        ]);
+        if (favs) {
+          saveFavorites(favs);
+        }
       }
       setIsInitializing(false);
     };
@@ -132,7 +139,14 @@ function App() {
     setCurrentUser(user);
     showToast(t('auth_success'), 'success');
     setIsInitializing(true);
-    await Promise.all([syncSettingsFromCloud(), loadMeals()]);
+    const [, , favs] = await Promise.all([
+      syncSettingsFromCloud(),
+      loadMeals(),
+      fetchFavorites(),
+    ]);
+    if (favs) {
+      saveFavorites(favs);
+    }
     setIsInitializing(false);
   };
 

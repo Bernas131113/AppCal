@@ -1,4 +1,5 @@
 import type { Meal, AppSettings, FavoriteMeal } from '../types';
+import { insertFavoriteDb, deleteFavoriteDb } from './supabase';
 
 const STORAGE_KEYS = {
   SETTINGS: 'appcal_settings',
@@ -156,6 +157,9 @@ export const addFavorite = (fav: FavoriteMeal): FavoriteMeal[] => {
   const filtered = favorites.filter(f => f.name.toLowerCase() !== fav.name.toLowerCase());
   const updated = [fav, ...filtered];
   saveFavorites(updated);
+
+  insertFavoriteDb(fav).catch(err => console.error("Failed to sync favorite to Supabase:", err));
+
   return updated;
 };
 
@@ -163,5 +167,8 @@ export const deleteFavorite = (id: string): FavoriteMeal[] => {
   const favorites = getFavorites();
   const updated = favorites.filter(f => f.id !== id);
   saveFavorites(updated);
+
+  deleteFavoriteDb(id).catch(err => console.error("Failed to delete favorite from Supabase:", err));
+
   return updated;
 };
