@@ -1,4 +1,5 @@
 // Helpers for AppCal
+import type { UserProfile, UserGoals } from '../types';
 
 /**
  * Compresses an image file client-side using native HTML5 canvas.
@@ -100,4 +101,66 @@ export const isSameDay = (d1: Date, d2: Date): boolean => {
 export const formatNumber = (num: number): string => {
   if (Number.isInteger(num)) return num.toString();
   return num.toFixed(1);
+};
+
+export const recalculateGoals = (profile: UserProfile): UserGoals => {
+  const {
+    age,
+    gender,
+    weight,
+    height,
+    activityLevel,
+    goalType,
+    calorieAdjustment,
+    macroSplitType,
+    fixedProteinPerKg,
+    fixedFatPerKg,
+    macroPercentages,
+  } = profile;
+
+  let bmr = 0;
+  if (gender === 'male') {
+    bmr = 10 * weight + 6.25 * height - 5 * age + 5;
+  } else {
+    bmr = 10 * weight + 6.25 * height - 5 * age - 161;
+  }
+
+  const tdee = bmr * activityLevel;
+
+  let targetCalories = tdee;
+  if (goalType === 'loss') {
+    targetCalories = tdee - calorieAdjustment;
+  } else if (goalType === 'gain') {
+    targetCalories = tdee + calorieAdjustment;
+  }
+
+  targetCalories = Math.max(1200, Math.round(targetCalories));
+
+  let protein = 130;
+  let carbs = 220;
+  let fats = 65;
+
+  if (macroSplitType === 'percentage') {
+    const pPct = macroPercentages.protein / 100;
+    const cPct = macroPercentages.carbs / 100;
+    const fPct = macroPercentages.fats / 100;
+
+    protein = Math.round((targetCalories * pPct) / 4);
+    carbs = Math.round((targetCalories * cPct) / 4);
+    fats = Math.round((targetCalories * fPct) / 9);
+  } else {
+    protein = Math.round(fixedProteinPerKg * weight);
+    fats = Math.round(fixedFatPerKg * weight);
+    const proteinCals = protein * 4;
+    const fatCals = fats * 9;
+    const remainingCals = targetCalories - proteinCals - fatCals;
+    carbs = Math.max(20, Math.round(remainingCals / 4));
+  }
+
+  return {
+    calories: targetCalories,
+    protein,
+    carbs,
+    fats,
+  };
 };

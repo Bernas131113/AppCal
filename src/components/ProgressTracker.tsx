@@ -3,7 +3,7 @@ import type { WeightLog, UserGoals, Meal } from '../types';
 import { fetchWeightLogs, insertWeightLog, deleteWeightLogDb } from '../utils/supabase';
 import { useAppStore } from '../store/useAppStore';
 import { Scale, Plus, Trash2, Calendar, TrendingUp, Award, Activity } from 'lucide-react';
-import { formatDateLabel, isSameDay } from '../utils/helpers';
+import { formatDateLabel, isSameDay, recalculateGoals } from '../utils/helpers';
 import { useTranslation } from '../utils/i18n';
 
 interface ProgressTrackerProps {
@@ -16,6 +16,8 @@ interface ProgressTrackerProps {
 export const ProgressTracker: React.FC<ProgressTrackerProps> = ({ goals, meals, confirmAction, showToast }) => {
   const { t } = useTranslation();
   const currentUser = useAppStore((state) => state.currentUser);
+  const settings = useAppStore((state) => state.settings);
+  const saveSettingsCloud = useAppStore((state) => state.saveSettingsCloud);
   const [weightLogs, setWeightLogs] = useState<WeightLog[]>([]);
   const [weightInput, setWeightInput] = useState('');
   const [dateInput, setDateInput] = useState(new Date().toISOString().split('T')[0]);
@@ -50,6 +52,22 @@ export const ProgressTracker: React.FC<ProgressTrackerProps> = ({ goals, meals, 
     setWeightInput('');
     if (showToast) showToast(t('progress_success_weight'), 'success');
 
+    // Dynamically update profile settings weight and goals based on latest sorted weight log
+    const latestLog = updated[updated.length - 1];
+    if (latestLog && currentUser) {
+      const newProfile = {
+        ...settings.profile,
+        weight: latestLog.weight_kg
+      };
+      const newGoals = recalculateGoals(newProfile);
+      const newSettings = {
+        ...settings,
+        profile: newProfile,
+        goals: newGoals
+      };
+      saveSettingsCloud(newSettings);
+    }
+
     try {
       const dbUpdated = await insertWeightLog(dateInput, weightNum);
       setWeightLogs(dbUpdated);
@@ -66,6 +84,24 @@ export const ProgressTracker: React.FC<ProgressTrackerProps> = ({ goals, meals, 
       const updated = weightLogs.filter((l) => l.id !== id);
       setWeightLogs(updated);
       if (showToast) showToast(t('dash_meal_deleted'), 'success');
+
+      // Update profile settings weight and goals to the new latest log (if it exists)
+      const latestLog = updated[updated.length - 1];
+      if (currentUser) {
+        const newProfile = {
+          ...settings.profile,
+          weight: latestLog ? latestLog.weight_kg : settings.profile.weight
+        };
+        if (latestLog) {
+          const newGoals = recalculateGoals(newProfile);
+          const newSettings = {
+            ...settings,
+            profile: newProfile,
+            goals: newGoals
+          };
+          saveSettingsCloud(newSettings);
+        }
+      }
 
       try {
         const dbUpdated = await deleteWeightLogDb(id);
