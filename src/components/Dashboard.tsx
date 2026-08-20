@@ -11,6 +11,8 @@ interface DashboardProps {
   onDeleteMeal: (id: string) => void;
   onEditMeal: (meal: Meal) => void;
   showToast?: (message: string, type?: 'success' | 'error' | 'info') => void;
+  selectedDate: Date;
+  setSelectedDate: (date: Date) => void;
 }
 
 export const calculateMealScore = (meal: { total_calories: number; total_protein: number; total_carbs: number; total_fats: number }): { grade: 'A' | 'B' | 'C' | 'D'; color: string } => {
@@ -42,9 +44,8 @@ export const calculateMealScore = (meal: { total_calories: number; total_protein
   return { grade, color: colors[grade] };
 };
 
-export const Dashboard: React.FC<DashboardProps> = ({ meals, goals, onDeleteMeal, onEditMeal, showToast }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ meals, goals, onDeleteMeal, onEditMeal, showToast, selectedDate, setSelectedDate }) => {
   const { t } = useTranslation();
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [favMealToSave, setFavMealToSave] = useState<Meal | null>(null);
   const [favNameInput, setFavNameInput] = useState('');
 

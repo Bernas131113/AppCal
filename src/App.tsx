@@ -60,6 +60,8 @@ function App() {
   const [activeLoggerMode, setActiveLoggerMode] = useState<'ai' | 'search' | 'quick' | null>(null);
   const [favoritesList, setFavoritesList] = useState<FavoriteMeal[]>([]);
 
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+
   useEffect(() => {
     if (activeTab === 'favorites') {
       setFavoritesList(getFavorites());
@@ -185,6 +187,12 @@ function App() {
   };
 
   const handleSaveMeal = async (newMeal: any) => {
+    // Set the meal date to the selected date (maintaining current hours/minutes/seconds)
+    const now = new Date();
+    const targetDate = new Date(selectedDate);
+    targetDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+    newMeal.timestamp = targetDate.toISOString();
+
     const prevMeals = meals;
     setMeals([newMeal, ...meals]);
     setPendingAnalysis(null);
@@ -318,6 +326,8 @@ function App() {
               onDeleteMeal={handleDeleteMeal}
               onEditMeal={setEditingMeal}
               showToast={showToast}
+              selectedDate={selectedDate}
+              setSelectedDate={setSelectedDate}
             />
           </div>
         ) : activeTab === 'favorites' ? (
