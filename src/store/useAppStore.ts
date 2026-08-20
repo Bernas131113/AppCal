@@ -126,7 +126,6 @@ export const useAppStore = create<AppState>()(
       partialize: (state) => ({
         currentUser: state.currentUser,
         settings: state.settings,
-        meals: state.meals,
         activeTab: state.activeTab,
         editingMeal: state.editingMeal,
         pendingAnalysis: state.pendingAnalysis,

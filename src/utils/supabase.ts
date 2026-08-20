@@ -320,10 +320,14 @@ export const fetchMeals = async (): Promise<Meal[]> => {
       }));
 
       // Cache locally
-      const allMeals = JSON.parse(localStorage.getItem('appcal_meals_v2') || '[]');
-      const otherMeals = allMeals.filter((m: any) => m.user_id !== user.id);
-      const userMeals = mappedMeals.map((m: any) => ({ ...m, user_id: user.id }));
-      localStorage.setItem('appcal_meals_v2', JSON.stringify([...otherMeals, ...userMeals]));
+      try {
+        const allMeals = JSON.parse(localStorage.getItem('appcal_meals_v2') || '[]');
+        const otherMeals = allMeals.filter((m: any) => m.user_id !== user.id);
+        const userMeals = mappedMeals.map((m: any) => ({ ...m, user_id: user.id }));
+        localStorage.setItem('appcal_meals_v2', JSON.stringify([...otherMeals, ...userMeals]));
+      } catch (cacheErr) {
+        console.warn('Erro ao guardar cache local das refeições (limite excedido):', cacheErr);
+      }
 
       return mappedMeals;
     } catch (e) {
