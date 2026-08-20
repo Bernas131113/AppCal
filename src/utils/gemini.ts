@@ -151,9 +151,9 @@ export const analyzeMealWithGemini = async (
     });
   }
 
-  let model = modelName || 'gemini-1.5-flash';
-  if (model === 'gemini-2.5-pro' || model === 'gemini-2.5-flash' || model === 'gemini-3.5-flash' || model === 'gemini-3.6-flash') {
-    model = 'gemini-1.5-flash';
+  let model = modelName || 'gemini-3.6-flash';
+  if (model === 'gemini-2.5-pro' || model === 'gemini-1.5-flash' || model === 'gemini-2.5-flash' || model === 'gemini-3.5-flash') {
+    model = 'gemini-3.6-flash';
   }
   // URL is constructed dynamically below using the effective API key from .env
 

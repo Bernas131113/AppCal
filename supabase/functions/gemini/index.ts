@@ -13,7 +13,7 @@ serve(async (req) => {
   }
 
   try {
-    const { model = "gemini-1.5-flash", contents, generationConfig } = await req.json();
+    const { model = "gemini-3.6-flash", contents, generationConfig } = await req.json();
 
     // Get the Gemini API Key from Supabase env variables
     const apiKey = Deno.env.get("GEMINI_API_KEY");

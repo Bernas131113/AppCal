@@ -33,7 +33,7 @@ const detectLanguage = (): 'pt' | 'en' => {
 
 const DEFAULT_SETTINGS: AppSettings = {
   geminiApiKey: import.meta.env.VITE_GEMINI_API_KEY || '',
-  model: 'gemini-1.5-flash',
+  model: 'gemini-3.6-flash',
   goals: {
     calories: 2000,
     protein: 130,
@@ -53,8 +53,8 @@ export const getSettings = (): AppSettings => {
     if (!data) return DEFAULT_SETTINGS;
     
     const parsed = JSON.parse(data);
-    if (parsed.model === 'gemini-2.5-pro' || parsed.model === 'gemini-3.5-flash' || parsed.model === 'gemini-2.5-flash' || parsed.model === 'gemini-3.6-flash') {
-      parsed.model = 'gemini-1.5-flash';
+    if (parsed.model === 'gemini-2.5-pro' || parsed.model === 'gemini-1.5-flash' || parsed.model === 'gemini-2.5-flash' || parsed.model === 'gemini-3.5-flash') {
+      parsed.model = 'gemini-3.6-flash';
     }
     
     // Merge defaults to handle schema updates smoothly
