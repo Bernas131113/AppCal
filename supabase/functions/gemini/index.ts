@@ -13,7 +13,7 @@ serve(async (req) => {
   }
 
   try {
-    const { model = "gemini-3.5-flash", contents, generationConfig } = await req.json();
+    const { model = "gemini-1.5-flash", contents, generationConfig } = await req.json();
 
     // Get the Gemini API Key from Supabase env variables
     const apiKey = Deno.env.get("GEMINI_API_KEY");
@@ -24,10 +24,13 @@ serve(async (req) => {
       );
     }
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
     const response = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey
+      },
       body: JSON.stringify({ contents, generationConfig }),
     });
 

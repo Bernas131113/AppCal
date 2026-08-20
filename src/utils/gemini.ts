@@ -151,9 +151,9 @@ export const analyzeMealWithGemini = async (
     });
   }
 
-  let model = modelName || 'gemini-3.5-flash';
-  if (model === 'gemini-2.5-pro' || model === 'gemini-1.5-flash' || model === 'gemini-2.5-flash' || model === 'gemini-3.6-flash') {
-    model = 'gemini-3.5-flash';
+  let model = modelName || 'gemini-1.5-flash';
+  if (model === 'gemini-2.5-pro' || model === 'gemini-2.5-flash' || model === 'gemini-3.5-flash' || model === 'gemini-3.6-flash') {
+    model = 'gemini-1.5-flash';
   }
   // URL is constructed dynamically below using the effective API key from .env
 
@@ -283,11 +283,12 @@ export const analyzeMealWithGemini = async (
       return getSimulatedResponse(textNotes, photos.length > 0);
     }
 
-    const directUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${effectiveKey}`;
+    const directUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
     const response = await fetch(directUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'x-goog-api-key': effectiveKey,
       },
       body: JSON.stringify(requestBody),
     });
