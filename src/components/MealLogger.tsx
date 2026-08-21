@@ -174,7 +174,7 @@ export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysi
     setError(null);
     setSelectedSearchProduct(null);
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 1200); // 1.2s max before IA fallback triggers
+    const timeoutId = setTimeout(() => controller.abort(), 4000); // 4s max before IA fallback triggers
 
     try {
       const response = await fetch(

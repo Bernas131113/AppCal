@@ -58,7 +58,7 @@ export const getSettings = (): AppSettings => {
     }
     
     // Merge defaults to handle schema updates smoothly
-    return {
+    const merged = {
       ...DEFAULT_SETTINGS,
       ...parsed,
       goals: {
@@ -74,6 +74,13 @@ export const getSettings = (): AppSettings => {
         },
       },
     };
+
+    // If VITE_GEMINI_API_KEY is present in the env, always use it to avoid cache issues
+    if (import.meta.env.VITE_GEMINI_API_KEY) {
+      merged.geminiApiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    }
+
+    return merged;
   } catch (e) {
     console.error('Erro ao ler configurações do localStorage', e);
     return DEFAULT_SETTINGS;

@@ -284,14 +284,46 @@ export const analyzeMealWithGemini = async (
     }
 
     const directUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
-    const response = await fetch(directUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': effectiveKey,
-      },
-      body: JSON.stringify(requestBody),
-    });
+    
+    let response: Response | null = null;
+    let attempts = 0;
+    const maxRetries = 3;
+    const baseDelay = 1000;
+
+    while (attempts < maxRetries) {
+      try {
+        response = await fetch(directUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': effectiveKey,
+          },
+          body: JSON.stringify(requestBody),
+        });
+
+        if (response.status === 429 && attempts < maxRetries - 1) {
+          attempts++;
+          const waitTime = baseDelay * Math.pow(2, attempts) + Math.random() * 300;
+          console.warn(`Gemini API returned 429. Retrying in ${Math.round(waitTime)}ms... (Attempt ${attempts} of ${maxRetries})`);
+          await new Promise((resolve) => setTimeout(resolve, waitTime));
+          continue;
+        }
+        break;
+      } catch (fetchErr) {
+        if (attempts < maxRetries - 1) {
+          attempts++;
+          const waitTime = baseDelay * Math.pow(2, attempts) + Math.random() * 300;
+          console.warn(`Network error calling Gemini. Retrying in ${Math.round(waitTime)}ms... (Attempt ${attempts} of ${maxRetries})`, fetchErr);
+          await new Promise((resolve) => setTimeout(resolve, waitTime));
+          continue;
+        }
+        throw fetchErr;
+      }
+    }
+
+    if (!response) {
+      throw new Error('Falha ao obter resposta da API Gemini.');
+    }
 
     if (!response.ok) {
       if (response.status === 429) {
