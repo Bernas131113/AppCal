@@ -55,10 +55,18 @@ export const compressImage = async (file: File, maxDimension: number = 800, qual
 };
 
 /**
- * Generates a unique string ID
+ * Generates a unique string ID (UUID v4)
  */
 export const generateId = (): string => {
-  return Math.random().toString(36).substring(2, 11) + '-' + Date.now().toString(36);
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  // Fallback RFC 4122 version 4 UUID generator
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
 };
 
 /**

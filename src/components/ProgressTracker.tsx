@@ -3,7 +3,7 @@ import type { WeightLog, UserGoals, Meal } from '../types';
 import { fetchWeightLogs, insertWeightLog, deleteWeightLogDb } from '../utils/supabase';
 import { useAppStore } from '../store/useAppStore';
 import { Scale, Plus, Trash2, Calendar, TrendingUp, Award, Activity } from 'lucide-react';
-import { formatDateLabel, isSameDay, recalculateGoals } from '../utils/helpers';
+import { formatDateLabel, isSameDay, recalculateGoals, generateId } from '../utils/helpers';
 import { useTranslation } from '../utils/i18n';
 
 interface ProgressTrackerProps {
@@ -37,7 +37,7 @@ export const ProgressTracker: React.FC<ProgressTrackerProps> = ({ goals, meals, 
     const weightNum = parseFloat(weightInput);
     if (isNaN(weightNum) || weightNum <= 0) return;
 
-    const tempId = Math.random().toString(36).substring(2, 9) + '-' + Date.now().toString();
+    const tempId = generateId();
     const newLog: WeightLog = {
       id: tempId,
       user_id: currentUser?.id || 'temp',

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { Meal, UserGoals } from '../types';
-import { formatDateLabel, formatNumber, isSameDay } from '../utils/helpers';
+import { formatDateLabel, formatNumber, isSameDay, generateId } from '../utils/helpers';
 import { addFavorite } from '../utils/storage';
 import { ChevronLeft, ChevronRight, Trash2, Calendar, Coffee, Utensils, Moon, Carrot, Sparkles, Star, Edit2 } from 'lucide-react';
 import { useTranslation } from '../utils/i18n';
@@ -117,7 +117,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ meals, goals, onDeleteMeal
   const confirmSaveFavorite = () => {
     if (!favMealToSave || !favNameInput.trim()) return;
     addFavorite({
-      id: Math.random().toString(36).substring(2, 11) + '-' + Date.now().toString(36),
+      id: generateId(),
       name: favNameInput.trim(),
       items: favMealToSave.items,
       total_calories: favMealToSave.total_calories,

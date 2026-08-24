@@ -8,6 +8,7 @@ import { ProgressTracker } from './components/ProgressTracker';
 import { Auth } from './components/Auth';
 import { ProfileView } from './components/ProfileView';
 import { getFavorites, deleteFavorite, saveFavorites } from './utils/storage';
+import { generateId } from './utils/helpers';
 import type { FavoriteMeal, MealType } from './types';
 import { 
   Sparkles, 
@@ -89,7 +90,7 @@ function App() {
     const total_fats = fav.items.reduce((sum, item) => sum + item.fats, 0);
 
     const newMeal = {
-      id: Math.random().toString(36).substring(2, 11) + '-' + Date.now().toString(),
+      id: generateId(),
       timestamp: new Date().toISOString(),
       meal_type,
       items: fav.items,
@@ -101,9 +102,18 @@ function App() {
       notes: `${fav.name}`
     };
     
-    await insertMeal(newMeal);
-    await loadMeals();
+    const prevMeals = meals;
+    setMeals([newMeal, ...meals]);
     showToast(t('fav_logged'), 'success');
+
+    try {
+      const savedMeal = await insertMeal(newMeal);
+      setMeals(useAppStore.getState().meals.map(m => m.id === newMeal.id ? savedMeal : m));
+    } catch (e) {
+      console.error(e);
+      setMeals(prevMeals);
+      showToast('Falha ao registar favorito no servidor.', 'error');
+    }
   };
 
   useEffect(() => {
@@ -127,6 +137,8 @@ function App() {
       const user = getLoggedInUser();
       if (user) {
         setCurrentUser(user);
+        // Sync any offline modifications first, before fetching from cloud
+        await syncOfflineData();
         const [, , favs] = await Promise.all([
           syncSettingsFromCloud(),
           loadMeals(),
@@ -135,8 +147,6 @@ function App() {
         if (favs) {
           saveFavorites(favs);
         }
-        // Sync any offline modifications
-        await syncOfflineData();
       }
       setIsInitializing(false);
     };
@@ -199,7 +209,8 @@ function App() {
     showToast(t('dash_meal_saved'), 'success');
     
     try {
-      await insertMeal(newMeal);
+      const savedMeal = await insertMeal(newMeal);
+      setMeals(useAppStore.getState().meals.map(m => m.id === newMeal.id ? savedMeal : m));
     } catch (e) {
       console.error(e);
       setMeals(prevMeals);
@@ -221,7 +232,8 @@ function App() {
     showToast(t('dash_meal_saved'), 'success');
 
     try {
-      await insertMeal(mealToSave);
+      const savedMeal = await insertMeal(mealToSave);
+      setMeals(useAppStore.getState().meals.map(m => m.id === mealToSave.id ? savedMeal : m));
     } catch (e) {
       console.error(e);
       setMeals(prevMeals);

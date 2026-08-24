@@ -21,6 +21,7 @@ export interface Meal {
   total_carbs: number;
   total_fats: number;
   notes?: string;
+  dirty?: boolean;
 }
 
 export interface UserGoals {
@@ -54,6 +55,7 @@ export interface WeightLog {
   user_id: string;
   date: string; // YYYY-MM-DD
   weight_kg: number;
+  dirty?: boolean;
 }
 
 export interface AppSettings {
@@ -76,4 +78,5 @@ export interface FavoriteMeal {
   total_protein: number;
   total_carbs: number;
   total_fats: number;
+  dirty?: boolean;
 }

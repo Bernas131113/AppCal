@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Meal, WeightLog, AppSettings, FavoriteMeal } from '../types';
+import { generateId } from './helpers';
 
 /*
   ========================================================================
@@ -340,11 +341,13 @@ export const fetchMeals = async (): Promise<Meal[]> => {
   return allMeals.filter((m: any) => m.user_id === user.id);
 };
 
-export const insertMeal = async (meal: Meal): Promise<void> => {
+export const insertMeal = async (meal: Meal): Promise<Meal> => {
   const user = getLoggedInUser();
-  if (!user) return;
+  if (!user) return meal;
 
   const ctx = getSupabaseContext();
+  let savedMeal: Meal = { ...meal };
+
   if (ctx) {
     try {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(meal.id);
@@ -385,25 +388,33 @@ export const insertMeal = async (meal: Meal): Promise<void> => {
 
       const { error: itemsError } = await ctx.client.from('meal_items').insert(itemsToInsert);
       if (itemsError) throw itemsError;
+
+      savedMeal = {
+        ...meal,
+        id: mealData.id,
+        dirty: false
+      };
     } catch (e) {
       console.error('Falha ao inserir/atualizar refeição no Supabase, guardando na cache local.', e);
+      savedMeal = {
+        ...meal,
+        dirty: true
+      };
     }
+  } else {
+    savedMeal = {
+      ...meal,
+      dirty: true
+    };
   }
 
   // Local fallback cache
   const allMeals = JSON.parse(localStorage.getItem('appcal_meals_v2') || '[]');
-  const exists = allMeals.some((m: any) => m.id === meal.id && m.user_id === user.id);
-  
-  let updatedMeals;
-  if (exists) {
-    updatedMeals = allMeals.map((m: any) => 
-      (m.id === meal.id && m.user_id === user.id) ? { ...meal, user_id: user.id } : m
-    );
-  } else {
-    updatedMeals = [{ ...meal, user_id: user.id }, ...allMeals];
-  }
+  const filteredMeals = allMeals.filter((m: any) => !(m.id === meal.id && m.user_id === user.id));
+  const updatedMeals = [{ ...savedMeal, user_id: user.id }, ...filteredMeals];
   
   localStorage.setItem('appcal_meals_v2', JSON.stringify(updatedMeals));
+  return savedMeal;
 };
 
 export const deleteMealDb = async (id: string): Promise<void> => {
@@ -512,10 +523,11 @@ export const insertWeightLog = async (date: string, weightKg: number): Promise<W
   const allLogs = JSON.parse(localStorage.getItem('appcal_weight_logs') || '[]');
   const filtered = allLogs.filter((l: any) => !(l.user_id === user.id && l.date === date));
   const newLog: WeightLog = {
-    id: Math.random().toString(36).substring(2, 9) + '-' + Date.now().toString(),
+    id: generateId(),
     user_id: user.id,
     date,
     weight_kg: weightKg,
+    dirty: true
   };
   const updated = [...filtered, newLog].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   localStorage.setItem('appcal_weight_logs', JSON.stringify(updated));
@@ -622,16 +634,18 @@ export const fetchFavorites = async (): Promise<FavoriteMeal[]> => {
   return JSON.parse(localStorage.getItem('appcal_favorites') || '[]');
 };
 
-export const insertFavoriteDb = async (fav: FavoriteMeal): Promise<void> => {
+export const insertFavoriteDb = async (fav: FavoriteMeal): Promise<FavoriteMeal> => {
   const user = getLoggedInUser();
-  if (!user) return;
+  if (!user) return fav;
 
   const ctx = getSupabaseContext();
+  let savedFav: FavoriteMeal = { ...fav };
+
   if (ctx) {
     try {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(fav.id);
       
-      const { error } = await ctx.client
+      const { data: favData, error } = await ctx.client
         .from('favorites')
         .upsert({
           id: isUuid ? fav.id : undefined,
@@ -642,26 +656,38 @@ export const insertFavoriteDb = async (fav: FavoriteMeal): Promise<void> => {
           total_protein: fav.total_protein,
           total_carbs: fav.total_carbs,
           total_fats: fav.total_fats,
-        }, { onConflict: 'id' });
+        }, { onConflict: 'id' })
+        .select()
+        .single();
 
       if (error) throw error;
+      if (favData) {
+        savedFav = {
+          ...fav,
+          id: favData.id,
+          dirty: false
+        };
+      }
     } catch (e) {
       console.error('Erro ao guardar favorito no Supabase, guardando na cache local.', e);
+      savedFav = {
+        ...fav,
+        dirty: true
+      };
     }
+  } else {
+    savedFav = {
+      ...fav,
+      dirty: true
+    };
   }
 
   // Local fallback cache
   const allFavorites = JSON.parse(localStorage.getItem('appcal_favorites') || '[]');
-  const exists = allFavorites.some((f: any) => f.id === fav.id);
-  let updated;
-  if (exists) {
-    updated = allFavorites.map((f: any) => 
-      f.id === fav.id ? fav : f
-    );
-  } else {
-    updated = [fav, ...allFavorites];
-  }
+  const filtered = allFavorites.filter((f: any) => f.id !== fav.id);
+  const updated = [savedFav, ...filtered];
   localStorage.setItem('appcal_favorites', JSON.stringify(updated));
+  return savedFav;
 };
 
 export const deleteFavoriteDb = async (id: string): Promise<void> => {
@@ -699,97 +725,145 @@ export const syncOfflineData = async (): Promise<void> => {
     console.log('Iniciando sincronização offline...');
 
     // 1. Sync local profile settings
-    const localSettings = JSON.parse(localStorage.getItem('appcal_settings') || 'null');
-    if (localSettings) {
-      await ctx.client
-        .from('profiles')
-        .upsert({
-          id: ctx.userId,
-          settings: localSettings,
-          updated_at: new Date().toISOString()
-        });
+    const settingsDirty = localStorage.getItem('appcal_settings_dirty') === 'true';
+    if (settingsDirty) {
+      const localSettings = JSON.parse(localStorage.getItem('appcal_settings') || 'null');
+      if (localSettings) {
+        const { error } = await ctx.client
+          .from('profiles')
+          .upsert({
+            id: ctx.userId,
+            settings: localSettings,
+            updated_at: new Date().toISOString()
+          });
+        if (!error) {
+          localStorage.removeItem('appcal_settings_dirty');
+        }
+      }
     }
 
     // 2. Sync local weight logs
     const localLogs = JSON.parse(localStorage.getItem('appcal_weight_logs') || '[]');
     const userLogs = localLogs.filter((l: any) => l.user_id === user.id);
-    for (const log of userLogs) {
-      const { data: existing } = await ctx.client
-        .from('weight_logs')
-        .select('id')
-        .eq('user_id', ctx.userId)
-        .eq('date', log.date)
-        .maybeSingle();
+    const dirtyLogs = userLogs.filter((l: any) => l.dirty === true);
 
-      if (existing) {
-        await ctx.client
+    if (dirtyLogs.length > 0) {
+      for (const log of dirtyLogs) {
+        const { data: existing } = await ctx.client
           .from('weight_logs')
-          .update({ weight_kg: log.weight_kg })
-          .eq('id', existing.id);
-      } else {
-        await ctx.client
-          .from('weight_logs')
-          .insert({
-            user_id: ctx.userId,
-            date: log.date,
-            weight_kg: log.weight_kg
-          });
+          .select('id')
+          .eq('user_id', ctx.userId)
+          .eq('date', log.date)
+          .maybeSingle();
+
+        let error = null;
+        if (existing) {
+          const { error: err } = await ctx.client
+            .from('weight_logs')
+            .update({ weight_kg: log.weight_kg })
+            .eq('id', existing.id);
+          error = err;
+        } else {
+          const { error: err } = await ctx.client
+            .from('weight_logs')
+            .insert({
+              user_id: ctx.userId,
+              date: log.date,
+              weight_kg: log.weight_kg
+            });
+          error = err;
+        }
+        
+        if (!error) {
+          log.dirty = false;
+        }
       }
+      const otherLogs = localLogs.filter((l: any) => l.user_id !== user.id);
+      localStorage.setItem('appcal_weight_logs', JSON.stringify([...otherLogs, ...userLogs]));
     }
 
     // 3. Sync local meals
     const localMeals = JSON.parse(localStorage.getItem('appcal_meals_v2') || '[]');
     const userMeals = localMeals.filter((m: any) => m.user_id === user.id);
-    for (const meal of userMeals) {
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(meal.id);
-      const { data: mealData, error: mealError } = await ctx.client
-        .from('meals')
-        .upsert({
-          id: isUuid ? meal.id : undefined,
-          user_id: ctx.userId,
-          meal_type: meal.meal_type,
-          logged_at: meal.timestamp,
-          photos: meal.photos,
-          total_calories: meal.total_calories,
-          total_protein: meal.total_protein,
-          total_carbs: meal.total_carbs,
-          total_fats: meal.total_fats,
-          notes: meal.notes,
-        }, { onConflict: 'id' })
-        .select()
-        .single();
+    const dirtyMeals = userMeals.filter((m: any) => {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(m.id);
+      return m.dirty === true || !isUuid;
+    });
 
-      if (!mealError && mealData) {
-        await ctx.client.from('meal_items').delete().eq('meal_id', mealData.id);
-        const itemsToInsert = meal.items.map((item: any) => ({
-          meal_id: mealData.id,
-          name: item.name,
-          weight_g: item.weight_g,
-          calories: item.calories,
-          protein: item.protein,
-          carbs: item.carbs,
-          fats: item.fats,
-        }));
-        await ctx.client.from('meal_items').insert(itemsToInsert);
+    if (dirtyMeals.length > 0) {
+      for (const meal of dirtyMeals) {
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(meal.id);
+        const { data: mealData, error: mealError } = await ctx.client
+          .from('meals')
+          .upsert({
+            id: isUuid ? meal.id : undefined,
+            user_id: ctx.userId,
+            meal_type: meal.meal_type,
+            logged_at: meal.timestamp,
+            photos: meal.photos,
+            total_calories: meal.total_calories,
+            total_protein: meal.total_protein,
+            total_carbs: meal.total_carbs,
+            total_fats: meal.total_fats,
+            notes: meal.notes,
+          }, { onConflict: 'id' })
+          .select()
+          .single();
+
+        if (!mealError && mealData) {
+          await ctx.client.from('meal_items').delete().eq('meal_id', mealData.id);
+          const itemsToInsert = meal.items.map((item: any) => ({
+            meal_id: mealData.id,
+            name: item.name,
+            weight_g: item.weight_g,
+            calories: item.calories,
+            protein: item.protein,
+            carbs: item.carbs,
+            fats: item.fats,
+          }));
+          const { error: itemsError } = await ctx.client.from('meal_items').insert(itemsToInsert);
+          
+          if (!itemsError) {
+            meal.id = mealData.id;
+            meal.dirty = false;
+          }
+        }
       }
+      const otherMeals = localMeals.filter((m: any) => m.user_id !== user.id);
+      localStorage.setItem('appcal_meals_v2', JSON.stringify([...otherMeals, ...userMeals]));
     }
 
     // 4. Sync local favorites
     const localFavs = JSON.parse(localStorage.getItem('appcal_favorites') || '[]');
-    for (const fav of localFavs) {
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(fav.id);
-      await ctx.client
-        .from('favorites')
-        .upsert({
-          id: isUuid ? fav.id : undefined,
-          user_id: ctx.userId,
-          name: fav.name,
-          items: fav.items,
-          total_calories: fav.total_calories,
-          total_protein: fav.total_protein,
-          total_carbs: fav.total_carbs,
-          total_fats: fav.total_fats,
-        }, { onConflict: 'id' });
+    const dirtyFavs = localFavs.filter((f: any) => {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(f.id);
+      return f.dirty === true || !isUuid;
+    });
+
+    if (dirtyFavs.length > 0) {
+      for (const fav of dirtyFavs) {
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(fav.id);
+        const { data: favData, error: favError } = await ctx.client
+          .from('favorites')
+          .upsert({
+            id: isUuid ? fav.id : undefined,
+            user_id: ctx.userId,
+            name: fav.name,
+            items: fav.items,
+            total_calories: fav.total_calories,
+            total_protein: fav.total_protein,
+            total_carbs: fav.total_carbs,
+            total_fats: fav.total_fats,
+          }, { onConflict: 'id' })
+          .select()
+          .single();
+
+        if (!favError && favData) {
+          fav.id = favData.id;
+          fav.dirty = false;
+        }
+      }
+      localStorage.setItem('appcal_favorites', JSON.stringify(localFavs));
     }
 
     console.log('Sincronização offline concluída com sucesso!');
