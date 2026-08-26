@@ -276,6 +276,7 @@ export const analyzeMealWithGemini = async (
     // The Edge Function approach requires deployment to Supabase CLI first.
     // For now we call Google's API directly — safe for local/dev use.
     const effectiveKey = (import.meta.env.VITE_GEMINI_API_KEY as string | undefined) || '';
+    console.log('Gemini API key em utilização:', effectiveKey ? `${effectiveKey.substring(0, 10)}...${effectiveKey.substring(effectiveKey.length - 4)}` : 'NENHUMA');
 
     if (!effectiveKey) {
       // No key at all — run demo simulation
