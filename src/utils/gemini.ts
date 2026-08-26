@@ -275,8 +275,7 @@ export const analyzeMealWithGemini = async (
     // Use API key from .env (VITE_GEMINI_API_KEY)
     // The Edge Function approach requires deployment to Supabase CLI first.
     // For now we call Google's API directly — safe for local/dev use.
-    const envApiKey = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
-    const effectiveKey = envApiKey || apiKey;
+    const effectiveKey = (import.meta.env.VITE_GEMINI_API_KEY as string | undefined) || '';
 
     if (!effectiveKey) {
       // No key at all — run demo simulation

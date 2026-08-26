@@ -206,7 +206,7 @@ export const MealReview: React.FC<MealReviewProps> = ({
       clearTimeout(timeoutId);
       console.log('Erro na base de dados externa ou limite de tempo excedido. A tentar alternativa por IA...', err);
       try {
-        const effectiveKey = apiKey || import.meta.env.VITE_GEMINI_API_KEY || '';
+        const effectiveKey = (import.meta.env.VITE_GEMINI_API_KEY as string) || '';
         const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${effectiveKey}`;
         const geminiRequestBody = {
           contents: [
