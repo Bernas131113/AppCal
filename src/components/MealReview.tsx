@@ -38,7 +38,6 @@ export const MealReview: React.FC<MealReviewProps> = ({
   notes,
   onSave,
   onCancel,
-  apiKey,
 }) => {
   const { t } = useTranslation();
   const [mealType, setMealType] = useState<MealType>(initialMealType);
