@@ -117,6 +117,17 @@ function App() {
   };
 
   useEffect(() => {
+    // If VITE_GEMINI_API_KEY is present in the env, always override the local storage state to avoid cached key issues
+    const envKey = import.meta.env.VITE_GEMINI_API_KEY;
+    if (envKey && useAppStore.getState().settings.geminiApiKey !== envKey) {
+      useAppStore.setState({
+        settings: {
+          ...useAppStore.getState().settings,
+          geminiApiKey: envKey
+        }
+      });
+    }
+
     const initSession = async () => {
       try {
         const client = getSupabaseClient();

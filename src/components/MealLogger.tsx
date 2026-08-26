@@ -194,7 +194,8 @@ export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysi
       clearTimeout(timeoutId);
       console.log('Erro na base de dados externa ou limite excedido. A tentar alternativa por IA...', err);
       try {
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`;
+        const effectiveKey = apiKey || import.meta.env.VITE_GEMINI_API_KEY || '';
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${effectiveKey}`;
         const geminiRequestBody = {
           contents: [
             {
