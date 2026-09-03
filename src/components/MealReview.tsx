@@ -249,10 +249,11 @@ export const MealReview: React.FC<MealReviewProps> = ({
         });
 
         if (!geminiResponse.ok) {
+          const keyHint = effectiveKey ? `[Chave: ${effectiveKey.substring(0, 8)}...${effectiveKey.substring(effectiveKey.length - 4)}]` : '[Sem Chave]';
           if (geminiResponse.status === 429) {
-            throw new Error('A quota de utilização do Gemini foi excedida. Por favor, aguarde 1 minuto para tentar novamente.');
+            throw new Error(`A quota de utilização do Gemini foi excedida. ${keyHint}`);
           }
-          throw new Error('Falha no fallback de IA.');
+          throw new Error(`Falha no fallback de IA. ${keyHint}`);
         }
 
         const geminiData = await geminiResponse.json();

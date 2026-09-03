@@ -326,11 +326,17 @@ export const analyzeMealWithGemini = async (
     }
 
     if (!response.ok) {
-      if (response.status === 429) {
-        throw new Error('A quota de utilização do Gemini foi excedida. Por favor, aguarde 1 minuto para tentar novamente.');
-      }
       const errorText = await response.text();
-      throw new Error(`Erro na API (${response.status}): ${errorText}`);
+      const keyHint = effectiveKey ? `[Chave: ${effectiveKey.substring(0, 8)}...${effectiveKey.substring(effectiveKey.length - 4)}]` : '[Sem Chave Configurada]';
+      if (response.status === 429) {
+        let details = '';
+        try {
+          const parsed = JSON.parse(errorText);
+          details = parsed.error?.message ? ` (${parsed.error.message})` : '';
+        } catch (_) {}
+        throw new Error(`A quota do Gemini foi excedida ou a chave atingiu limite${details}. ${keyHint}`);
+      }
+      throw new Error(`Erro na API (${response.status}): ${errorText} ${keyHint}`);
     }
 
     const data = await response.json();
