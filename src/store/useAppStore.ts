@@ -127,8 +127,8 @@ export const useAppStore = create<AppState>()(
         currentUser: state.currentUser,
         settings: state.settings,
         activeTab: state.activeTab,
-        editingMeal: state.editingMeal,
-        pendingAnalysis: state.pendingAnalysis,
+        editingMeal: state.editingMeal ? { ...state.editingMeal, photos: [] } : null,
+        pendingAnalysis: state.pendingAnalysis ? { ...state.pendingAnalysis, photos: [] } : null,
       }),
     }
   )

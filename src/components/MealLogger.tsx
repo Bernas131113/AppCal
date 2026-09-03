@@ -373,22 +373,31 @@ export const MealLogger: React.FC<MealLoggerProps> = ({ apiKey, model, onAnalysi
       return;
     }
     setIsAnalyzing(true);
+    let result: any = null;
     try {
-      const result = await analyzeMealWithGemini(apiKey, model, photos, textNotes, audioBase64);
-      onAnalysisComplete({
-        meal_type: result.meal_type,
-        items: result.items as FoodItem[],
-        photos: photos,
-        notes: textNotes,
-      });
-      setPhotos([]);
-      setTextNotes('');
-      setAudioBase64(undefined);
+      result = await analyzeMealWithGemini(apiKey, model, photos, textNotes, audioBase64);
     } catch (err: any) {
       console.error(err);
       setError(err?.message || 'Erro na ligação ao Gemini. Configure a API Key.');
+      return;
     } finally {
       setIsAnalyzing(false);
+    }
+
+    if (result) {
+      try {
+        onAnalysisComplete({
+          meal_type: result.meal_type,
+          items: result.items as FoodItem[],
+          photos: photos,
+          notes: textNotes,
+        });
+        setPhotos([]);
+        setTextNotes('');
+        setAudioBase64(undefined);
+      } catch (stateErr: any) {
+        console.error('Erro ao transferir análise para o ecrã de revisão:', stateErr);
+      }
     }
   };
 

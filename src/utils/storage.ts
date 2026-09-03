@@ -111,7 +111,11 @@ export const getMeals = (): Meal[] => {
 
 export const saveMeals = (meals: Meal[]): void => {
   try {
-    localStorage.setItem(STORAGE_KEYS.MEALS, JSON.stringify(meals));
+    const sanitizedMeals = meals.map(m => ({
+      ...m,
+      photos: (m.photos || []).map((p: string) => p.startsWith('data:') ? '' : p).filter(Boolean)
+    }));
+    localStorage.setItem(STORAGE_KEYS.MEALS, JSON.stringify(sanitizedMeals));
   } catch (e) {
     console.error('Erro ao guardar refeições no localStorage', e);
   }

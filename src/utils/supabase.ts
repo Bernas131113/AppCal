@@ -408,12 +408,23 @@ export const insertMeal = async (meal: Meal): Promise<Meal> => {
     };
   }
 
-  // Local fallback cache
-  const allMeals = JSON.parse(localStorage.getItem('appcal_meals_v2') || '[]');
-  const filteredMeals = allMeals.filter((m: any) => !(m.id === meal.id && m.user_id === user.id));
-  const updatedMeals = [{ ...savedMeal, user_id: user.id }, ...filteredMeals];
-  
-  localStorage.setItem('appcal_meals_v2', JSON.stringify(updatedMeals));
+  // Local fallback cache (strips heavy base64 photos to prevent localStorage QuotaExceededError)
+  try {
+    const allMeals = JSON.parse(localStorage.getItem('appcal_meals_v2') || '[]');
+    const filteredMeals = allMeals.filter((m: any) => !(m.id === meal.id && m.user_id === user.id));
+    
+    // Sanitize photos to prevent localStorage 5MB quota exhaustion
+    const sanitizedSavedMeal = {
+      ...savedMeal,
+      photos: (savedMeal.photos || []).map((p: string) => p.startsWith('data:') ? '' : p).filter(Boolean)
+    };
+    
+    const updatedMeals = [{ ...sanitizedSavedMeal, user_id: user.id }, ...filteredMeals];
+    localStorage.setItem('appcal_meals_v2', JSON.stringify(updatedMeals));
+  } catch (storageErr) {
+    console.warn('Aviso: limite de localStorage excedido ao guardar refeição. Mantendo na memória.', storageErr);
+  }
+
   return savedMeal;
 };
 
@@ -432,9 +443,13 @@ export const deleteMealDb = async (id: string): Promise<void> => {
   }
 
   // Local fallback cache delete
-  const allMeals = JSON.parse(localStorage.getItem('appcal_meals_v2') || '[]');
-  const updated = allMeals.filter((m: any) => !(m.id === id && m.user_id === user.id));
-  localStorage.setItem('appcal_meals_v2', JSON.stringify(updated));
+  try {
+    const allMeals = JSON.parse(localStorage.getItem('appcal_meals_v2') || '[]');
+    const updated = allMeals.filter((m: any) => !(m.id === id && m.user_id === user.id));
+    localStorage.setItem('appcal_meals_v2', JSON.stringify(updated));
+  } catch (storageErr) {
+    console.warn('Erro ao atualizar localStorage após apagar refeição:', storageErr);
+  }
 };
 
 // ==========================================

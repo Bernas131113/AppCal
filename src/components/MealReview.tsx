@@ -359,29 +359,34 @@ export const MealReview: React.FC<MealReviewProps> = ({
     if (isSubmitting) return;
     setIsSubmitting(true);
     
-    const cleanItems: FoodItem[] = items.map(({ name, weight_g, calories, protein, carbs, fats, confidence }) => ({
-      name,
-      weight_g,
-      calories,
-      protein,
-      carbs,
-      fats,
-      confidence,
-    }));
+    try {
+      const cleanItems: FoodItem[] = items.map(({ name, weight_g, calories, protein, carbs, fats, confidence }) => ({
+        name,
+        weight_g,
+        calories,
+        protein,
+        carbs,
+        fats,
+        confidence,
+      }));
 
-    const newMeal: Meal = {
-      id: generateId(),
-      timestamp: new Date().toISOString(),
-      meal_type: mealType,
-      items: cleanItems,
-      photos,
-      total_calories: totalCalories,
-      total_protein: totalProtein,
-      total_carbs: totalCarbs,
-      total_fats: totalFats,
-      notes: notes || undefined,
-    };
-    onSave(newMeal);
+      const newMeal: Meal = {
+        id: generateId(),
+        timestamp: new Date().toISOString(),
+        meal_type: mealType,
+        items: cleanItems,
+        photos,
+        total_calories: totalCalories,
+        total_protein: totalProtein,
+        total_carbs: totalCarbs,
+        total_fats: totalFats,
+        notes: notes || undefined,
+      };
+      onSave(newMeal);
+    } catch (err) {
+      console.error('Erro ao acionar onSave:', err);
+      setIsSubmitting(false);
+    }
   };
 
   const mealTypesList: { value: MealType; label: string }[] = [

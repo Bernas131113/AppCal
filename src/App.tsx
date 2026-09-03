@@ -128,6 +128,30 @@ function App() {
       });
     }
 
+    // Purge bloated base64 photos from localStorage to immediately resolve Safari QuotaExceededError
+    try {
+      const keys = ['appcal_meals_v2', 'appcal_meals', 'appcal-store-v1'];
+      for (const k of keys) {
+        const raw = localStorage.getItem(k);
+        if (raw && raw.includes('data:image')) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            const cleaned = parsed.map((m: any) => ({
+              ...m,
+              photos: (m.photos || []).map((p: string) => (typeof p === 'string' && p.startsWith('data:') ? '' : p)).filter(Boolean)
+            }));
+            localStorage.setItem(k, JSON.stringify(cleaned));
+          } else if (parsed && typeof parsed === 'object') {
+            if (parsed.state?.pendingAnalysis?.photos) parsed.state.pendingAnalysis.photos = [];
+            if (parsed.state?.editingMeal?.photos) parsed.state.editingMeal.photos = [];
+            localStorage.setItem(k, JSON.stringify(parsed));
+          }
+        }
+      }
+    } catch (cleanErr) {
+      console.warn('Aviso na limpeza de cache de fotos:', cleanErr);
+    }
+
     const initSession = async () => {
       try {
         const client = getSupabaseClient();
@@ -214,7 +238,6 @@ function App() {
     targetDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
     newMeal.timestamp = targetDate.toISOString();
 
-    const prevMeals = meals;
     setMeals([newMeal, ...meals]);
     setPendingAnalysis(null);
     showToast(t('dash_meal_saved'), 'success');
@@ -223,9 +246,9 @@ function App() {
       const savedMeal = await insertMeal(newMeal);
       setMeals(useAppStore.getState().meals.map(m => m.id === newMeal.id ? savedMeal : m));
     } catch (e) {
-      console.error(e);
-      setMeals(prevMeals);
-      showToast('Falha ao guardar refeição no servidor.', 'error');
+      console.error('Aviso ao sincronizar com servidor, mas refeição mantida:', e);
+      // Do not revert! The meal remains logged locally for the user
+      showToast('Guardado localmente (erro ao sincronizar na nuvem)', 'info');
     }
   };
 
@@ -237,7 +260,6 @@ function App() {
       timestamp: editingMeal.timestamp
     };
     
-    const prevMeals = meals;
     setMeals(meals.map(m => m.id === editingMeal.id ? mealToSave : m));
     setEditingMeal(null);
     showToast(t('dash_meal_saved'), 'success');
@@ -246,9 +268,8 @@ function App() {
       const savedMeal = await insertMeal(mealToSave);
       setMeals(useAppStore.getState().meals.map(m => m.id === mealToSave.id ? savedMeal : m));
     } catch (e) {
-      console.error(e);
-      setMeals(prevMeals);
-      showToast('Falha ao atualizar refeição no servidor.', 'error');
+      console.error('Aviso ao atualizar no servidor, mas refeição mantida:', e);
+      showToast('Atualizado localmente (erro ao sincronizar na nuvem)', 'info');
     }
   };
 
