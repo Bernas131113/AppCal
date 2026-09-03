@@ -320,14 +320,24 @@ export const fetchMeals = async (): Promise<Meal[]> => {
         })),
       }));
 
-      // Cache locally
+      // Cache locally (strip heavy base64 to avoid localStorage quota exhaustion)
       try {
         const allMeals = JSON.parse(localStorage.getItem('appcal_meals_v2') || '[]');
         const otherMeals = allMeals.filter((m: any) => m.user_id !== user.id);
-        const userMeals = mappedMeals.map((m: any) => ({ ...m, user_id: user.id }));
+        const userMeals = mappedMeals.map((m: any) => ({
+          ...m,
+          user_id: user.id,
+          photos: (m.photos || []).map((p: string) => (typeof p === 'string' && p.startsWith('data:') ? '' : p)).filter(Boolean)
+        }));
         localStorage.setItem('appcal_meals_v2', JSON.stringify([...otherMeals, ...userMeals]));
       } catch (cacheErr) {
-        console.warn('Erro ao guardar cache local das refeições (limite excedido):', cacheErr);
+        // If localStorage is full, remove photos entirely and keep only the latest 20 meals
+        try {
+          const minimalMeals = mappedMeals.slice(0, 20).map((m: any) => ({ ...m, user_id: user.id, photos: [] }));
+          localStorage.setItem('appcal_meals_v2', JSON.stringify(minimalMeals));
+        } catch (_) {
+          console.warn('Aviso: Armazenamento local do navegador cheio. A app continuará a funcionar em memória.');
+        }
       }
 
       return mappedMeals;
@@ -844,8 +854,16 @@ export const syncOfflineData = async (): Promise<void> => {
           }
         }
       }
-      const otherMeals = localMeals.filter((m: any) => m.user_id !== user.id);
-      localStorage.setItem('appcal_meals_v2', JSON.stringify([...otherMeals, ...userMeals]));
+      try {
+        const otherMeals = localMeals.filter((m: any) => m.user_id !== user.id);
+        const cleanUserMeals = userMeals.map((m: any) => ({
+          ...m,
+          photos: (m.photos || []).map((p: string) => (typeof p === 'string' && p.startsWith('data:') ? '' : p)).filter(Boolean)
+        }));
+        localStorage.setItem('appcal_meals_v2', JSON.stringify([...otherMeals, ...cleanUserMeals]));
+      } catch (syncErr) {
+        console.warn('Erro ao atualizar cache local após sincronização:', syncErr);
+      }
     }
 
     // 4. Sync local favorites
