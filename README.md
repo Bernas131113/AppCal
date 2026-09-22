@@ -1,32 +1,60 @@
-# React + TypeScript + Vite
+# 🥗 AppCal — AI-Powered Nutrition & Calorie Tracker
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Vite](https://img.shields.io/badge/Vite-8.x-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
+[![Supabase](https://img.shields.io/badge/Backend-Supabase-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com/)
+[![Gemini AI](https://img.shields.io/badge/AI-Google%20Gemini-8E75B2?logo=googlegemini&logoColor=white)](https://ai.google.dev/)
 
-Currently, two official plugins are available:
+> **AppCal** é uma aplicação web progressiva moderna para registo e análise nutricional diária. Combina visão computacional com o modelo multimodal **Google Gemini** para estimar automaticamente calorias e macronutrientes a partir de fotos de refeições, além de permitir leitura de códigos de barras de alimentos e sincronização segura com o Supabase.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+---
 
-## React Compiler
+## ✨ Funcionalidades Principais
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- 🤖 **Análise Nutricional com IA (Gemini)**: Tira ou envia uma foto do prato e a IA decompõe automaticamente os ingredientes, gramagens estimadas e macronutrientes (Calorias, Proteínas, Hidratos de Carbono e Gorduras).
+- 📷 **Leitor de Código de Barras**: Scanner integrado para identificar produtos e obter valores nutricionais rapidamente.
+- 📊 **Dashboard Diário & Metas**: Acompanhamento em tempo real de calorias consumidas vs. metas diárias, balanço de macros e progresso de peso corporal.
+- ☁️ **Sincronização na Cloud (Supabase)**: Autenticação de utilizadores, Row Level Security (RLS) e persistência de histórico de refeições e pesos.
+- 🌐 **Suporte Multilíngue (i18n)**: Suporte completo em Português e Inglês.
+- ⚡ **Offline-Ready & PWA**: Armazenamento local rápido com Zustand e Service Worker para experiência fluida em dispositivos móveis.
 
-## Expanding the Oxlint configuration
+---
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+## 🛠️ Stack Tecnológica
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
-```
+- **Frontend:** React 19, TypeScript, Vite
+- **Estado Global:** Zustand
+- **Backend & Autenticação:** Supabase (PostgreSQL + RLS + Auth)
+- **Inteligência Artificial:** Google Gemini API (Multimodal Vision)
+- **Leitor de Códigos de Barras:** `html5-qrcode`
+- **Ícones & UI:** Lucide React, CSS Moderno com Dark Mode
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+---
+
+## 🚀 Como Executar Localmente
+
+### Pré-requisitos
+- Node.js (v18+)
+- Conta no Supabase e chave da API do Google Gemini (opcional, inclui modo de demonstração)
+
+### Passos
+1. Clonar o repositório:
+   ```bash
+   git clone https://github.com/Bernas131113/AppCal.git
+   cd AppCal
+   ```
+2. Instalar dependências:
+   ```bash
+   npm install
+   ```
+3. Configurar variáveis de ambiente criando um ficheiro `.env`:
+   ```env
+   VITE_SUPABASE_URL=tua_url_supabase
+   VITE_SUPABASE_ANON_KEY=tua_chave_anon_supabase
+   VITE_GEMINI_API_KEY=tua_chave_gemini
+   ```
+4. Iniciar o servidor de desenvolvimento:
+   ```bash
+   npm run dev
+   ```
